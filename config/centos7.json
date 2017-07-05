@@ -1,0 +1,42 @@
+{
+  "iostat": {
+    "path": "/usr/bin/iostat",
+    "requires": {
+      "package": "sysstat",
+      "version": "10.1.5"
+    },
+    "commands": {
+      "disk_util_standard": {
+        "args": " -p ALL -mNd",
+        "count": 2,
+        "time_interval_seconds": 1
+      },
+      "disk_util_extended": {
+        "args": " -p ALL -mNx",
+        "count": 2,
+        "time_interval_seconds": 1
+      }
+    }
+  },
+
+  "vmstat": {
+    "path": "/usr/bin/iostat",
+    "requires": {
+      "package": "procps-ng",
+      "version": "3.3.10"
+    },
+    "commands": {
+      "mem_1": "-"
+    }
+  },
+  "mpstat": {
+    "path": "/usr/bin/iostat",
+    "requires": {
+      "package": "sysstat",
+      "version": "10.1.5"
+    },
+    "commands": {
+      "cpu_util_1": "-"
+    }
+  }
+}
