@@ -111,6 +111,7 @@ if __name__ == '__main__':
     iostatRunner = IOStatWrapper('../config/centos7.json')
     #iostatRunner.get_disk_stats()
     iostatRunner.data_feeder(command_id='disk_util_extended')
+    
 
     from glob import glob
 
