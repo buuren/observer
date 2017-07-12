@@ -1,0 +1,82 @@
+{
+  "diskstats": {
+    "rrqm/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "wrqm/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "r/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "w/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "rkB/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "wkB/s": {
+      "warning": "",
+      "critical": ""
+    },
+    "avgrq-sz": {
+      "warning": "",
+      "critical": ""
+    },
+    "avgqu-sz": {
+      "warning": "",
+      "critical": ""
+    },
+    "await": {
+      "warning": "50",
+      "critical": "100"
+    },
+    "r_await": {
+      "warning": "",
+      "critical": ""
+    },
+    "w_await": {
+      "warning": "",
+      "critical": ""
+    },
+    "svctm": {
+      "warning": "",
+      "critical": ""
+    },
+    "%util": {
+      "warning": "70",
+      "critical": "90"
+    }
+  },
+  "cpustats": {
+    "cpu": {
+      "warning": "70",
+      "critical": "100"
+    }
+  },
+  "vmstats": {
+    "free": {
+      "warning": "70",
+      "critical": "100"
+    }
+  },
+  "loadavg": {
+    "1min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "5min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "15min": {
+      "warning": "70",
+      "critical": "100"
+    }
+  }
+}
