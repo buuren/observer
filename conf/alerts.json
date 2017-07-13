@@ -78,5 +78,19 @@
       "warning": "70",
       "critical": "100"
     }
+  },
+  "netstats": {
+    "1min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "5min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "15min": {
+      "warning": "70",
+      "critical": "100"
+    }
   }
 }

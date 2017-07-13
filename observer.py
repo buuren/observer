@@ -1,115 +1,125 @@
 import os
 import time
+import resource
 
 
 class Observer:
-    def __init__(self, sleep, count):
+    def __init__(self, sleep=1, count=2):
         self.sleep = sleep
         self.count = count
+        self.file_content = dict()
         self.data = dict()
-
         self.proc_file_dictionary = {
-            "f_diskstats": "/proc/diskstats",
-            "f_partitions": "/proc/partitions",
-            "f_stat": "/proc/stat",
-            "f_loadavg": "/proc/loadavg"
+            "/proc/diskstats": "/proc/diskstats",
+            "/proc/partitions": "/proc/partitions",
+            "/proc/stat": "/proc/stat",
+            "/proc/loadavg": "/proc/loadavg",
+            "/proc/vmstat": "/proc/vmstat"
         }
 
+        self.file_content = self.data_generator(sleep, count)
+
+    def generate_calculations(self):
+        calculated_results = {}
+        # a[1] = {"c": {"f: ""z"}, "b": {"f: ""z"}, "v": {"f: ""z"}}
+
+        for index in range(1, self.count):
+            calculated_results[index] = {**self.diskstats(index), **self.cpustats(index), **self.vmstats(index)}
+
+        self.display_calculations(calculated_results)
+
+    def display_calculations(self, calculated_results):
+        for index in calculated_results.keys():
+            ts_delta = self.get_ts_delta(index)
+            last_ts = self.file_content[index]['ts']
+            curr_ts = self.file_content[index+1]['ts']
+            print("Generation completed - displaying results...")
+            print("")
+
+            start_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(last_ts))
+            end_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(curr_ts))
+            rounded_ts_delta = round(ts_delta, 4)
+
+            for statistics in calculated_results[index].keys():
+                print("[%s] Statistics from [%s] to [%s] (Delta: %s ms)" % (
+                    statistics, start_date, end_date, rounded_ts_delta
+                ))
+                print("----------------------------------------------------------------------------------------------")
+                for stat_name, stat_values in calculated_results[index][statistics].items():
+                    print(stat_name, stat_values)
+
+                print("")
+
+    def analyze_calculatins(self):
+        pass
+
+
+
+    def diskstats(self, index):
+        disk_stats = DiskStats(observer=self)
+        return disk_stats.get_diskstats(index)
+
+    def cpustats(self, index):
+        cpu_stats = CPUStats(observer=self)
+        return cpu_stats.get_cpustats(index)
+
+    def vmstats(self, index):
+        vm_stats = VMStats(observer=self)
+        return vm_stats.get_vmstats(index)
+
     def file_reader(self, index):
-        print("Reading metrics...")
+        print("Generating metrics with index [%s]" % index)
         for proc, file_name in self.proc_file_dictionary.items():
             with open(file_name) as f:
-                self.data[index][proc] = f.readlines()
-                self.data[index]['ts'] = os.stat(f.name).st_mtime
+                self.file_content[index][proc] = f.readlines()
+                self.file_content[index]['ts'] = os.stat(f.name).st_mtime
 
     def data_generator(self, sleep, count):
         assert count >= 2, 'Count must be equal or greater 2'
 
         print("Will generate [%s] metrics with [%s] seconds time interval" % (count, sleep))
         for index in range(1, count):
-            self.data[index] = dict()
+            self.file_content[index] = dict()
             self.file_reader(index)
             time.sleep(sleep)
 
-        self.data[count] = dict()
+        self.file_content[count] = dict()
         self.file_reader(count)
 
-        return self.data
+        return self.file_content
 
-    def diskstats(self):
-        disk_stats = DiskStats(sleep=self.sleep, count=self.count, observer_data=self.data)
-        disk_stats.analyze_diskstats()
-
-    def cpustats(self):
-        cpu_stats = CPUStats(sleep=self.sleep, count=self.count, observer_data=self.data)
-        cpu_stats.analyze_cpustats()
-
-    def vmstats(self):
-        vm_stats = VMStats(sleep=self.sleep, count=self.count, observer_data=self.data)
-        vm_stats.analyze_vmstats()
+    def get_ts_delta(self, index):
+        return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
 
 
-class Constructor:
-    def __init__(self, sleep, count, observer_data):
-        self.sleep = sleep
-        self.count = count
-
-        if len(observer_data.keys()) == 0:
-            self.observer_obj = Observer(self.sleep, self.count)
-            self.observer_data = self.observer_obj.data_generator(self.sleep, self.count)
-        else:
-            self.observer_data = observer_data
+class Processes:
+    def __init__(self, observer):
+        self.observer = observer
 
 
-class Processes(Constructor):
-    def __init__(self, sleep, count, observer_data):
-        super().__init__(sleep, count, observer_data)
+class CPUStats:
+    def __init__(self, observer):
+        self.sector_size = 1
+        self.observer = observer
 
+    def get_cpustats(self, index):
+        cpu_stats = dict()
+        cpu_stats['cpustats'] = dict()
 
-class CPUStats(Constructor):
-    def __init__(self, sleep, count, observer_data):
-        super().__init__(sleep, count, observer_data)
+        cpu_last = self.cpu_io_counters(index)
+        cpu_curr = self.cpu_io_counters(index + 1)
 
-    def analyze_cpustats(self):
-        print("Starting to analyze CPU data...")
-        cpu_stats = self.get_cpustats()
-        for dev, counters in cpu_stats.items():
-            print(dev, counters)
+        for dev in cpu_curr.keys():
+            cpu_stats['cpustats'][dev] = {
+                k: round(v, 2) for k, v in self.cpustats_calc(
+                    last=cpu_last[dev],
+                    curr=cpu_curr[dev]
+                ).items()
+            }
+        return cpu_stats
 
-    def get_cpustats(self):
-        result = {}
-        for index in range(1, self.count):
-            result[index] = {}
-            cpu_last = self.cpu_io_counters(index)
-            cpu_last_ts = self.observer_data[index]["ts"]
-
-            cpu_curr = self.cpu_io_counters(index + 1)
-            cpu_curr_ts = self.observer_data[index + 1]["ts"]
-
-            cpu_stats = {}
-
-            ts_delta = cpu_curr_ts - cpu_last_ts
-            print("CPU statistics from [%s] to [%s] (Delta: %s ms)" % (
-                time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(cpu_last_ts)),
-                time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(cpu_curr_ts)),
-                round(ts_delta, 4)
-            ))
-            print("---------------------------------------------------------------------------------------------------")
-
-            for dev in cpu_curr.keys():
-                calculations = {
-                    k: round(v, 2) for k, v in self.cpustats_calc(
-                        last=cpu_last[dev],
-                        curr=cpu_curr[dev]
-                    ).items()
-                }
-                cpu_stats[dev] = calculations
-                print(dev, cpu_stats[dev])
-                result[index] = cpu_stats
-
-        return result
-
-    def cpustats_calc(self, last, curr):
+    @staticmethod
+    def cpustats_calc(last, curr):
         cpu_stats = {}
 
         deltas = {stat: int(curr[stat]) - int(last[stat]) for stat in curr.keys() if stat is not "dev"}
@@ -138,13 +148,15 @@ class CPUStats(Constructor):
         return d
 
     def cpu_io_counters(self, index):
-        read_cpu_stats = self.observer_data[index]['f_stat'][:os.cpu_count()+1]
+        read_cpu_stats = self.observer.file_content[index]['/proc/stat'][:os.cpu_count()+1]
         cpu_stats = [self.line_to_dict(line) for line in read_cpu_stats]
         cpu_stats = {stat['dev']: stat for stat in cpu_stats}
         return cpu_stats
 
-    @staticmethod
-    def get_deltams(cpu_last, cpu_curr):
+    def get_deltams(self, index):
+        cpu_last = self.cpu_io_counters(index)['cpu']
+        cpu_curr = self.cpu_io_counters(index + 1)['cpu']
+
         curr_cpu_load = int(cpu_curr['user']) + int(cpu_curr['system']) + \
             int(cpu_curr['idle']) + int(cpu_curr['iowait'])
 
@@ -156,89 +168,62 @@ class CPUStats(Constructor):
         return deltams
 
 
-class VMStats(Constructor):
-    def __init__(self, sleep, count, observer_data):
-        super().__init__(sleep, count, observer_data)
+class VMStats:
+    def __init__(self, observer):
+        self.observer = observer
 
-    def analyze_vmstats(self):
-        vm_stats = self.get_vmstats()
-        for dev, counters in vm_stats.items():
-            print(dev, counters)
+    def get_vmstats(self, index):
+        vmstats = dict()
+        vmstats['vmstats'] = dict()
+        vmstats['vmstats'] = self.vmstat_counters(index)
+        return vmstats
 
-    def get_vmstats(self):
-        result = {}
-        for index in range(1, self.count):
-            result[index] = {}
-            curr_loadavg = self.loadavg_counters(index)
-            result[index] = curr_loadavg
-
-        return result
-
-    def parse_loadavg(self, line):
+    @staticmethod
+    def parse_loadavg(line):
         one_min, five_min, fifteen_min, curr_proc, last_proc_id = line.split()
         proc_scheduled = curr_proc.split('/')[0]
         entities_total = curr_proc.split('/')[1]
-        del line, self, curr_proc
+        del line, curr_proc
         d = {k: v for k, v in locals().items()}
         return d
 
-    def loadavg_counters(self, index):
-        read_loadvg = self.observer_data[index]['f_loadavg'][0]
-        loadavg_stats = {"loadavg": self.parse_loadavg(read_loadvg)}
-        return loadavg_stats
+    def vmstat_counters(self, index):
+        read_loadvg = self.observer.file_content[index]['/proc/loadavg'][0]
+        read_vmstat = self.observer.file_content[index]['/proc/vmstat']
+
+        vmstats = dict()
+        vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
+        vmstats['vmstat'] = {stat.split()[0]: int(stat.split()[1]) for stat in read_vmstat}
+        return vmstats
 
 
-class DiskStats(Constructor):
-    def __init__(self, sleep, count, observer_data):
-        super().__init__(sleep, count, observer_data)
-        self.sector_size = 1
+class DiskStats:
+    def __init__(self, observer):
+        self.sector_size = 512
+        self.observer = observer
 
-    def analyze_diskstats(self):
-        print("Starting to analyze data...")
-        disk_stats = self.get_diskstats()
-        for dev, counters in disk_stats.items():
-            print(dev, counters)
+    def get_diskstats(self, index):
+        disk_stats = dict()
+        disk_stats['diskstats'] = dict()
 
-    def get_diskstats(self):
-        result = {}
-        for index in range(1, self.count):
-            result[index] = {}
-            disk_last = self.disk_io_counters(index)
-            disk_last_ts = self.observer_data[index]["ts"]
+        disk_last = self.disk_io_counters(index)
+        disk_curr = self.disk_io_counters(index + 1)
 
-            disk_curr = self.disk_io_counters(index + 1)
-            disk_curr_ts = self.observer_data[index + 1]["ts"]
+        cpu_runner = CPUStats(self.observer)
+        deltams = cpu_runner.get_deltams(index)
 
-            cpu_runner = CPUStats(1, 3, self.observer_data)
-            cpu_last = cpu_runner.cpu_io_counters(index)
-            cpu_curr = cpu_runner.cpu_io_counters(index + 1)
+        for dev in disk_curr.keys():
+            calculations = {
+                k: round(v, 2) for k, v in self.calc(
+                    last=disk_last[dev],
+                    curr=disk_curr[dev],
+                    ts_delta=self.observer.get_ts_delta(index),
+                    deltams=deltams
+                ).items()
+            }
+            disk_stats['diskstats'][dev] = calculations
 
-            deltams = cpu_runner.get_deltams(cpu_last['cpu'], cpu_curr['cpu'])
-
-            disk_stats = {}
-
-            ts_delta = disk_curr_ts - disk_last_ts
-            print("Disk IO statistics from [%s] to [%s] (Delta: %s ms)" % (
-                time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(disk_last_ts)),
-                time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(disk_curr_ts)),
-                round(ts_delta, 4)
-            ))
-            print("---------------------------------------------------------------------------------------------------")
-            for dev in disk_curr.keys():
-                calculations = {
-                    k: round(v, 2) for k, v in self.calc(
-                        last=disk_last[dev],
-                        curr=disk_curr[dev],
-                        ts_delta=ts_delta,
-                        deltams=deltams
-                    ).items()
-                }
-                disk_stats[dev] = calculations
-                print(dev, disk_stats[dev])
-
-                result[index] = disk_stats
-
-        return result
+        return disk_stats
 
     def calc(self, last, curr, ts_delta, deltams):
         disk_stats = {}
@@ -284,18 +269,22 @@ class DiskStats(Constructor):
         return d
 
     def disk_io_counters(self, index):
-        read_partitions = self.observer_data[index]['f_partitions'][2:]
+        read_partitions = self.observer.file_content[index]['/proc/partitions'][2:]
         partitions = set([part.split()[-1] for part in read_partitions if not isinstance(part.strip()[-1], int)])
 
-        read_diskstats = self.observer_data[index]['f_diskstats']
+        read_diskstats = self.observer.file_content[index]['/proc/diskstats']
         disk_stats = [self.parse_diskstats(line) for line in read_diskstats]
         disk_stats = {stat['dev']: stat for stat in disk_stats if stat['dev'] in partitions}
 
         return disk_stats
 
 
+class NetStats:
+    def __init__(self, observer):
+        self.observer = observer
+
+
 if __name__ == '__main__':
     o = Observer(sleep=1, count=5)
-    #o.diskstats()
-    o.vmstats()
-    #print_output()
+    o.generate_calculations()
+
