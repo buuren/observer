@@ -25,7 +25,7 @@ or
 
 ```
 wget https://raw.githubusercontent.com/buuren/observer/master/observer.py
-wget https://github.com/buuren/observer/blob/master/conf/alerts.json
+wget https://raw.githubusercontent.com/buuren/observer/master/conf/alerts.json
 ```
 
 
