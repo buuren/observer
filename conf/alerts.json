@@ -1,52 +1,52 @@
 {
   "diskstats": {
     "rrqm/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "5",
+      "critical": "10"
     },
     "wrqm/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "r/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "w/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "rkB/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "wkB/s": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "avgrq-sz": {
-      "warning": "",
-      "critical": ""
+      "warning": "5",
+      "critical": "10"
     },
     "avgqu-sz": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "await": {
       "warning": "50",
       "critical": "100"
     },
     "r_await": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "w_await": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "svctm": {
-      "warning": "",
-      "critical": ""
+      "warning": "9999",
+      "critical": "9999"
     },
     "%util": {
       "warning": "70",
@@ -63,20 +63,20 @@
     "free": {
       "warning": "70",
       "critical": "100"
-    }
-  },
-  "loadavg": {
-    "1min": {
-      "warning": "70",
-      "critical": "100"
     },
-    "5min": {
-      "warning": "70",
-      "critical": "100"
-    },
-    "15min": {
-      "warning": "70",
-      "critical": "100"
+    "loadavg": {
+      "one_min": {
+        "warning": "70",
+        "critical": "100"
+      },
+      "five_min": {
+        "warning": "70",
+        "critical": "100"
+      },
+      "fifteen_min": {
+        "warning": "70",
+        "critical": "100"
+      }
     }
   },
   "netstats": {

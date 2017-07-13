@@ -1,92 +1,7 @@
 import os
 import time
+import json
 import resource
-
-
-class Observer:
-    def __init__(self, sleep=1, count=2):
-        self.sleep = sleep
-        self.count = count
-        self.file_content = dict()
-        self.data = dict()
-        self.proc_file_dictionary = {
-            "/proc/diskstats": "/proc/diskstats",
-            "/proc/partitions": "/proc/partitions",
-            "/proc/stat": "/proc/stat",
-            "/proc/loadavg": "/proc/loadavg",
-            "/proc/vmstat": "/proc/vmstat"
-        }
-
-        self.file_content = self.data_generator(sleep, count)
-
-    def generate_calculations(self):
-        calculated_results = {}
-
-        for index in range(1, self.count):
-            calculated_results[index] = {**self.diskstats(index), **self.cpustats(index), **self.vmstats(index)}
-
-        self.display_calculations(calculated_results)
-
-    def display_calculations(self, calculated_results):
-        for index in calculated_results.keys():
-            ts_delta = self.get_ts_delta(index)
-            last_ts = self.file_content[index]['ts']
-            curr_ts = self.file_content[index+1]['ts']
-            print("Generation completed - displaying results...")
-            print("")
-
-            start_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(last_ts))
-            end_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(curr_ts))
-            rounded_ts_delta = round(ts_delta, 4)
-
-            for statistics in calculated_results[index].keys():
-                print("[%s] Statistics from [%s] to [%s] (Delta: %s ms)" % (
-                    statistics, start_date, end_date, rounded_ts_delta
-                ))
-                print("----------------------------------------------------------------------------------------------")
-                for stat_name, stat_values in calculated_results[index][statistics].items():
-                    print(stat_name, stat_values)
-
-                print("")
-
-    def analyze_calculatins(self):
-        pass
-
-    def diskstats(self, index):
-        disk_stats = DiskStats(observer=self)
-        return disk_stats.get_diskstats(index)
-
-    def cpustats(self, index):
-        cpu_stats = CPUStats(observer=self)
-        return cpu_stats.get_cpustats(index)
-
-    def vmstats(self, index):
-        vm_stats = VMStats(observer=self)
-        return vm_stats.get_vmstats(index)
-
-    def file_reader(self, index):
-        print("Generating metrics with index [%s]" % index)
-        for proc, file_name in self.proc_file_dictionary.items():
-            with open(file_name) as f:
-                self.file_content[index][proc] = f.readlines()
-                self.file_content[index]['ts'] = os.stat(f.name).st_mtime
-
-    def data_generator(self, sleep, count):
-        assert count >= 2, 'Count must be equal or greater 2'
-
-        print("Will generate [%s] metrics with [%s] seconds time interval" % (count, sleep))
-        for index in range(1, count):
-            self.file_content[index] = dict()
-            self.file_reader(index)
-            time.sleep(sleep)
-
-        self.file_content[count] = dict()
-        self.file_reader(count)
-
-        return self.file_content
-
-    def get_ts_delta(self, index):
-        return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
 
 
 class Processes:
@@ -197,12 +112,26 @@ class VMStats:
 
 class DiskStats:
     def __init__(self, observer):
+        super()
         self.sector_size = 512
         self.observer = observer
+        self.my_metric_key = 'diskstats'
+
+    def analyze_diskstats(self, diskstat_results):
+        my_alert_data = self.observer.alert_data[self.my_metric_key]
+        for device, device_stats in diskstat_results.items():
+            for alert_metric, alert_value in my_alert_data.items():
+                warning_value = int(alert_value['warning'])
+                critical_value = int(alert_value['critical'])
+                actual_value = int(device_stats[alert_metric])
+
+                self.observer.compare_values(
+                    metrics=locals()
+                )
 
     def get_diskstats(self, index):
         disk_stats = dict()
-        disk_stats['diskstats'] = dict()
+        disk_stats[self.my_metric_key] = dict()
 
         disk_last = self.disk_io_counters(index)
         disk_curr = self.disk_io_counters(index + 1)
@@ -210,16 +139,16 @@ class DiskStats:
         cpu_runner = CPUStats(self.observer)
         deltams = cpu_runner.get_deltams(index)
 
-        for dev in disk_curr.keys():
+        for device in disk_curr.keys():
             calculations = {
                 k: round(v, 2) for k, v in self.calc(
-                    last=disk_last[dev],
-                    curr=disk_curr[dev],
+                    last=disk_last[device],
+                    curr=disk_curr[device],
                     ts_delta=self.observer.get_ts_delta(index),
                     deltams=deltams
                 ).items()
             }
-            disk_stats['diskstats'][dev] = calculations
+            disk_stats[self.my_metric_key][device] = calculations
 
         return disk_stats
 
@@ -282,6 +211,130 @@ class NetStats:
     def __init__(self, observer):
         self.observer = observer
 
+    def get_netstats(self, index):
+        netstats = dict()
+        netstats['netstats'] = dict()
+        netstats['netstats'] = {"eth0": {"metric", "metric_value"}}
+        return netstats
+
+
+class Observer:
+    def __init__(self, sleep, count, path_to_json="conf/alerts.json"):
+        self.sleep = sleep
+        self.count = count
+        self.path_to_json = path_to_json
+        self.file_content = dict()
+        self.data = dict()
+        self.proc_file_dictionary = {
+            "/proc/diskstats": "/proc/diskstats",
+            "/proc/partitions": "/proc/partitions",
+            "/proc/stat": "/proc/stat",
+            "/proc/loadavg": "/proc/loadavg",
+            "/proc/vmstat": "/proc/vmstat"
+        }
+
+        self.file_content = self.data_generator(sleep, count)
+        self.alert_data = self.json_reader()
+
+        self.diskstats = DiskStats(self)
+        self.vmstats = VMStats(self)
+        self.procceses = Processes(self)
+        self.netstats = NetStats(self)
+        self.cpustats = CPUStats(self)
+
+    def generate_calculations(self):
+        calculated_results = {}
+
+        for index in range(1, self.count):
+            calculated_results[index] = {
+                **self.diskstats.get_diskstats(index),
+                **self.cpustats.get_cpustats(index),
+                **self.vmstats.get_vmstats(index),
+                **self.netstats.get_netstats(index)
+            }
+
+        # self.display_calculations(calculated_results)
+        self.run_analyzer(calculated_results)
+
+    def display_calculations(self, calculated_results):
+        for index in calculated_results.keys():
+            ts_delta = self.get_ts_delta(index)
+            last_ts = self.file_content[index]['ts']
+            curr_ts = self.file_content[index+1]['ts']
+            print("Generation completed - displaying results...")
+            print("")
+
+            start_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(last_ts))
+            end_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(curr_ts))
+            rounded_ts_delta = round(ts_delta, 4)
+
+            for statistics in calculated_results[index].keys():
+                print("[%s-%s] Statistics from [%s] to [%s] (Delta: %s ms)" % (
+                    statistics, index, start_date, end_date, rounded_ts_delta
+                ))
+                print("----------------------------------------------------------------------------------------------")
+                for stat_name, stat_values in calculated_results[index][statistics].items():
+                    print(stat_name, stat_values)
+                print("")
+
+    def run_analyzer(self, calculated_results):
+        for index in range(1, self.count):
+            self.diskstats.analyze_diskstats(
+                diskstat_results=calculated_results[index][self.diskstats.my_metric_key]
+            )
+
+    def data_generator(self, sleep, count):
+        assert count >= 2, 'Count must be equal or greater 2'
+
+        print("Will generate [%s] metrics with [%s] seconds time interval" % (count, sleep))
+        for index in range(1, count):
+            self.file_content[index] = dict()
+            self.file_reader(index)
+            time.sleep(sleep)
+
+        self.file_content[count] = dict()
+        self.file_reader(count)
+
+        return self.file_content
+
+    def file_reader(self, index):
+        print("Generating metrics with index [%s]" % index)
+        for proc, file_name in self.proc_file_dictionary.items():
+            with open(file_name) as f:
+                self.file_content[index][proc] = f.readlines()
+                self.file_content[index]['ts'] = os.stat(f.name).st_mtime
+
+    def get_ts_delta(self, index):
+        return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
+
+    def json_reader(self):
+        return json.loads(open(self.path_to_json).read())
+
+    @staticmethod
+    def compare_values(metrics):
+
+        # print('Device [%s] - Metric [%s] - Warning value [%s] - Critical value [%s] - Actual [%s]' % (
+        #    device,
+        #    alert_metric,
+        #    warning_value,
+        #    critical_value,
+        #    actual_value
+        # ))
+
+        if metrics['actual_value'] >= metrics['critical_value']:
+            print("Device [%s]: [%s] has reached critical value [%s]" % (
+                metrics['device'], metrics['alert_metric'], metrics['actual_value']
+            ))
+            status = "CRITICAL"
+        elif metrics['actual_value'] >= metrics['warning_value']:
+            print("Device [%s]: [%s] has reached warning value [%s]" % (
+                metrics['device'], metrics['alert_metric'], metrics['actual_value']
+            ))
+            status = "WARNING"
+        else:
+            status = "OK"
+
+        return status
 
 if __name__ == '__main__':
     o = Observer(sleep=1, count=5)
