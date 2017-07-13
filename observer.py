@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import timedelta
 import json
 import resource
 
@@ -112,22 +113,37 @@ class VMStats:
 
 class DiskStats:
     def __init__(self, observer):
-        super()
         self.sector_size = 512
         self.observer = observer
         self.my_metric_key = 'diskstats'
 
-    def analyze_diskstats(self, diskstat_results):
+    def analyze_diskstats(self):
         my_alert_data = self.observer.alert_data[self.my_metric_key]
-        for device, device_stats in diskstat_results.items():
-            for alert_metric, alert_value in my_alert_data.items():
-                warning_value = int(alert_value['warning'])
-                critical_value = int(alert_value['critical'])
-                actual_value = int(device_stats[alert_metric])
 
+        for alert_metric, alert_value in my_alert_data.items():
+            warning_value = int(alert_value['warning'])
+            critical_value = int(alert_value['critical'])
+
+            for device, device_stats in self.observer.average_results[self.my_metric_key].items():
+                actual_value = int(device_stats[alert_metric])
                 self.observer.compare_values(
                     metrics=locals()
                 )
+
+    def generate_totals(self, diskstat_results):
+        for device, device_stats in diskstat_results.items():
+            if device not in self.observer.average_results[self.my_metric_key].keys():
+                self.observer.average_results[self.my_metric_key][device] = device_stats
+            else:
+                for stat, stat_value in device_stats.items():
+                    self.observer.average_results[self.my_metric_key][device][stat] = \
+                        self.observer.average_results[self.my_metric_key][device][stat] + float(stat_value)
+
+    def generate_averages(self):
+        for device in self.observer.average_results[self.my_metric_key]:
+            for stat, stat_value in self.observer.average_results[self.my_metric_key][device].items():
+                self.observer.average_results[self.my_metric_key][device][stat] = \
+                    self.observer.average_results[self.my_metric_key][device][stat] / self.observer.count
 
     def get_diskstats(self, index):
         disk_stats = dict()
@@ -187,15 +203,6 @@ class DiskStats:
 
         return disk_stats
 
-    @staticmethod
-    def parse_diskstats(line):
-        major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, \
-            w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
-
-        del line
-        d = {k: v for k, v in locals().items()}
-        return d
-
     def disk_io_counters(self, index):
         read_partitions = self.observer.file_content[index]['/proc/partitions'][2:]
         partitions = set([part.split()[-1] for part in read_partitions if not isinstance(part.strip()[-1], int)])
@@ -205,6 +212,15 @@ class DiskStats:
         disk_stats = {stat['dev']: stat for stat in disk_stats if stat['dev'] in partitions}
 
         return disk_stats
+
+    @staticmethod
+    def parse_diskstats(line):
+        major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, \
+            w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
+
+        del line
+        d = {k: v for k, v in locals().items()}
+        return d
 
 
 class NetStats:
@@ -222,9 +238,8 @@ class Observer:
     def __init__(self, sleep, count, path_to_json="conf/alerts.json"):
         self.sleep = sleep
         self.count = count
-        self.path_to_json = path_to_json
+        self.raw_data = dict()
         self.file_content = dict()
-        self.data = dict()
         self.proc_file_dictionary = {
             "/proc/diskstats": "/proc/diskstats",
             "/proc/partitions": "/proc/partitions",
@@ -232,15 +247,26 @@ class Observer:
             "/proc/loadavg": "/proc/loadavg",
             "/proc/vmstat": "/proc/vmstat"
         }
-
         self.file_content = self.data_generator(sleep, count)
+        self.path_to_json = path_to_json
         self.alert_data = self.json_reader()
+        self.system_uptime_seconds = self.get_system_uptime()
+        self.average_results = dict()
 
         self.diskstats = DiskStats(self)
+        self.average_results[self.diskstats.my_metric_key] = dict()
+
         self.vmstats = VMStats(self)
+        #self.average_results[self.vmstats.my_metric_key] = dict()
+
         self.procceses = Processes(self)
+        #self.average_results[self.procceses.my_metric_key] = dict()
+
         self.netstats = NetStats(self)
+        #self.average_results[self.netstats.my_metric_key] = dict()
+
         self.cpustats = CPUStats(self)
+        #self.average_results[self.cpustats.my_metric_key] = dict()
 
     def generate_calculations(self):
         calculated_results = {}
@@ -253,7 +279,7 @@ class Observer:
                 **self.netstats.get_netstats(index)
             }
 
-        # self.display_calculations(calculated_results)
+        self.display_calculations(calculated_results)
         self.run_analyzer(calculated_results)
 
     def display_calculations(self, calculated_results):
@@ -279,7 +305,7 @@ class Observer:
 
     def run_analyzer(self, calculated_results):
         for index in range(1, self.count):
-            self.diskstats.analyze_diskstats(
+            self.diskstats.generate_totals(
                 diskstat_results=calculated_results[index][self.diskstats.my_metric_key]
             )
 
@@ -310,8 +336,9 @@ class Observer:
     def json_reader(self):
         return json.loads(open(self.path_to_json).read())
 
-    @staticmethod
-    def compare_values(metrics):
+    def compare_values(self, metrics):
+        #print(metrics['self'].my_metric_key)
+        #exit()
 
         # print('Device [%s] - Metric [%s] - Warning value [%s] - Critical value [%s] - Actual [%s]' % (
         #    device,
@@ -326,6 +353,7 @@ class Observer:
                 metrics['device'], metrics['alert_metric'], metrics['actual_value']
             ))
             status = "CRITICAL"
+            #self.end_results["CRITICAL"][]
         elif metrics['actual_value'] >= metrics['warning_value']:
             print("Device [%s]: [%s] has reached warning value [%s]" % (
                 metrics['device'], metrics['alert_metric'], metrics['actual_value']
@@ -336,6 +364,20 @@ class Observer:
 
         return status
 
+    def calculate_averages(self):
+        pass
+
+    @staticmethod
+    def get_system_uptime():
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.readline().split()[0])
+
+        return uptime_seconds
+
 if __name__ == '__main__':
-    o = Observer(sleep=1, count=5)
+    start = time.time()
+    _sleep = 1
+    _count = 20
+    o = Observer(sleep=_sleep, count=_count)
     o.generate_calculations()
+    print("Finished calculations in [%s] seconds" % (time.time() - start - (_count - 1)))
