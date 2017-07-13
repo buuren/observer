@@ -21,7 +21,6 @@ class Observer:
 
     def generate_calculations(self):
         calculated_results = {}
-        # a[1] = {"c": {"f: ""z"}, "b": {"f: ""z"}, "v": {"f: ""z"}}
 
         for index in range(1, self.count):
             calculated_results[index] = {**self.diskstats(index), **self.cpustats(index), **self.vmstats(index)}
@@ -52,8 +51,6 @@ class Observer:
 
     def analyze_calculatins(self):
         pass
-
-
 
     def diskstats(self, index):
         disk_stats = DiskStats(observer=self)
@@ -141,15 +138,16 @@ class CPUStats:
 
         return cpu_stats
 
-    def line_to_dict(self, line):
+    @staticmethod
+    def parse_cpustats(line):
         dev, user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice = line.split()
-        del line, self
+        del line
         d = {k: v for k, v in locals().items()}
         return d
 
     def cpu_io_counters(self, index):
         read_cpu_stats = self.observer.file_content[index]['/proc/stat'][:os.cpu_count()+1]
-        cpu_stats = [self.line_to_dict(line) for line in read_cpu_stats]
+        cpu_stats = [self.parse_cpustats(line) for line in read_cpu_stats]
         cpu_stats = {stat['dev']: stat for stat in cpu_stats}
         return cpu_stats
 
@@ -260,11 +258,12 @@ class DiskStats:
 
         return disk_stats
 
-    def parse_diskstats(self, line):
+    @staticmethod
+    def parse_diskstats(line):
         major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, \
             w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
 
-        del line, self
+        del line
         d = {k: v for k, v in locals().items()}
         return d
 
@@ -287,4 +286,3 @@ class NetStats:
 if __name__ == '__main__':
     o = Observer(sleep=1, count=5)
     o.generate_calculations()
-
