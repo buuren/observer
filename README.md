@@ -69,6 +69,6 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Acknowledgments
 
-* The following README template was created upon https://gist.github.com/PurpleBooth/b24679402957c63ec426
+* The following README is based on the following template: https://gist.github.com/PurpleBooth/b24679402957c63ec426
 * This project was inspired by https://github.com/dagwieers/dstat
 * etc
