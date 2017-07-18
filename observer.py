@@ -14,22 +14,24 @@ class CPUStats:
     def __init__(self, observer):
         self.sector_size = 1
         self.observer = observer
+        self.my_metric_key = "cpustats"
+        self.observer.calculated_results[self.my_metric_key] = dict()
 
     def get_cpustats(self, index):
         cpu_stats = dict()
-        cpu_stats['cpustats'] = dict()
-
         cpu_last = self.cpu_io_counters(index)
         cpu_curr = self.cpu_io_counters(index + 1)
 
-        for dev in cpu_curr.keys():
-            cpu_stats['cpustats'][dev] = {
+        for device in cpu_curr.keys():
+            calculations = {
                 k: round(v, 2) for k, v in self.cpustats_calc(
-                    last=cpu_last[dev],
-                    curr=cpu_curr[dev]
+                    last=cpu_last[device],
+                    curr=cpu_curr[device]
                 ).items()
             }
-        return cpu_stats
+            cpu_stats[device] = calculations
+
+        self.observer.calculated_results[self.my_metric_key][index] = cpu_stats
 
     @staticmethod
     def cpustats_calc(last, curr):
@@ -85,12 +87,12 @@ class CPUStats:
 class VMStats:
     def __init__(self, observer):
         self.observer = observer
+        self.my_metric_key = "vmstats"
+        self.observer.calculated_results[self.my_metric_key] = dict()
 
     def get_vmstats(self, index):
-        vmstats = dict()
-        vmstats['vmstats'] = dict()
-        vmstats['vmstats'] = self.vmstat_counters(index)
-        return vmstats
+        vmstats = self.vmstat_counters(index)
+        self.observer.calculated_results[self.my_metric_key][index] = vmstats
 
     @staticmethod
     def parse_loadavg(line):
@@ -113,9 +115,11 @@ class VMStats:
 
 class DiskStats:
     def __init__(self, observer):
+        print("NEW INSTANCE")
         self.sector_size = 512
         self.observer = observer
         self.my_metric_key = 'diskstats'
+        self.observer.calculated_results[self.my_metric_key] = dict()
 
     def analyze_diskstats(self):
         my_alert_data = self.observer.alert_data[self.my_metric_key]
@@ -124,36 +128,41 @@ class DiskStats:
             warning_value = int(alert_value['warning'])
             critical_value = int(alert_value['critical'])
 
-            for device, device_stats in self.observer.average_results[self.my_metric_key].items():
+            for device, device_stats in self.observer.average_values[self.my_metric_key].items():
                 actual_value = int(device_stats[alert_metric])
                 self.observer.compare_values(
                     metrics=locals()
                 )
 
-    def generate_totals(self, diskstat_results):
+    def generate_totals(self, index):
+        diskstat_results = self.observer.calculated_results[self.my_metric_key][index]
+
         for device, device_stats in diskstat_results.items():
-            if device not in self.observer.average_results[self.my_metric_key].keys():
-                self.observer.average_results[self.my_metric_key][device] = device_stats
+            if device not in self.observer.average_values[self.my_metric_key].keys():
+                self.observer.average_values[self.my_metric_key][device] = device_stats
+                self.observer.min_values[self.my_metric_key][device] = device_stats.copy()
+                self.observer.max_values[self.my_metric_key][device] = device_stats.copy()
             else:
                 for stat, stat_value in device_stats.items():
-                    self.observer.average_results[self.my_metric_key][device][stat] = \
-                        self.observer.average_results[self.my_metric_key][device][stat] + float(stat_value)
+                    self.observer.average_values[self.my_metric_key][device][stat] = \
+                        self.observer.average_values[self.my_metric_key][device][stat] + float(stat_value)
+
+                    if float(self.observer.min_values[self.my_metric_key][device][stat]) > float(stat_value):
+                        self.observer.min_values[self.my_metric_key][device][stat] = float(stat_value)
+
+                    if float(self.observer.max_values[self.my_metric_key][device][stat]) < float(stat_value):
+                        self.observer.max_values[self.my_metric_key][device][stat] = float(stat_value)
 
     def generate_averages(self):
-        for device in self.observer.average_results[self.my_metric_key]:
-            for stat, stat_value in self.observer.average_results[self.my_metric_key][device].items():
-                self.observer.average_results[self.my_metric_key][device][stat] = \
-                    self.observer.average_results[self.my_metric_key][device][stat] / self.observer.count
+        for device in self.observer.average_values[self.my_metric_key]:
+            for stat, stat_value in self.observer.average_values[self.my_metric_key][device].items():
+                self.observer.average_values[self.my_metric_key][device][stat] = \
+                    float(self.observer.average_values[self.my_metric_key][device][stat]) / (self.observer.count - 1)
 
-    def get_diskstats(self, index):
+    def get_diskstats(self, index, deltams):
         disk_stats = dict()
-        disk_stats[self.my_metric_key] = dict()
-
         disk_last = self.disk_io_counters(index)
         disk_curr = self.disk_io_counters(index + 1)
-
-        cpu_runner = CPUStats(self.observer)
-        deltams = cpu_runner.get_deltams(index)
 
         for device in disk_curr.keys():
             calculations = {
@@ -164,9 +173,9 @@ class DiskStats:
                     deltams=deltams
                 ).items()
             }
-            disk_stats[self.my_metric_key][device] = calculations
+            disk_stats[device] = calculations
 
-        return disk_stats
+        self.observer.calculated_results[self.my_metric_key][index] = disk_stats
 
     def calc(self, last, curr, ts_delta, deltams):
         disk_stats = {}
@@ -226,20 +235,21 @@ class DiskStats:
 class NetStats:
     def __init__(self, observer):
         self.observer = observer
+        self.my_metric_key = "netstats"
+        self.observer.calculated_results[self.my_metric_key] = dict()
 
     def get_netstats(self, index):
         netstats = dict()
-        netstats['netstats'] = dict()
-        netstats['netstats'] = {"eth0": {"metric", "metric_value"}}
-        return netstats
+        netstats = {"eth0": {"metric", "metric_value"}}
+        self.observer.calculated_results[self.my_metric_key][index] = netstats
 
 
 class Observer:
     def __init__(self, sleep, count, path_to_json="conf/alerts.json"):
         self.sleep = sleep
         self.count = count
-        self.raw_data = dict()
         self.file_content = dict()
+        self.calculated_results = dict()
         self.proc_file_dictionary = {
             "/proc/diskstats": "/proc/diskstats",
             "/proc/partitions": "/proc/partitions",
@@ -247,69 +257,76 @@ class Observer:
             "/proc/loadavg": "/proc/loadavg",
             "/proc/vmstat": "/proc/vmstat"
         }
-        self.file_content = self.data_generator(sleep, count)
+        self.file_content = self.load_file_data(sleep, count)
         self.path_to_json = path_to_json
         self.alert_data = self.json_reader()
         self.system_uptime_seconds = self.get_system_uptime()
-        self.average_results = dict()
+        self.average_values = dict()
+        self.max_values = dict()
+        self.min_values = dict()
 
         self.diskstats = DiskStats(self)
-        self.average_results[self.diskstats.my_metric_key] = dict()
+        self.average_values[self.diskstats.my_metric_key] = dict()
+        self.max_values[self.diskstats.my_metric_key] = dict()
+        self.min_values[self.diskstats.my_metric_key] = dict()
+
 
         self.vmstats = VMStats(self)
-        #self.average_results[self.vmstats.my_metric_key] = dict()
+        #self.average_values[self.vmstats.my_metric_key] = dict()
 
         self.procceses = Processes(self)
-        #self.average_results[self.procceses.my_metric_key] = dict()
+        #self.average_values[self.procceses.my_metric_key] = dict()
 
         self.netstats = NetStats(self)
-        #self.average_results[self.netstats.my_metric_key] = dict()
+        #self.average_values[self.netstats.my_metric_key] = dict()
 
         self.cpustats = CPUStats(self)
-        #self.average_results[self.cpustats.my_metric_key] = dict()
+        #self.average_values[self.cpustats.my_metric_key] = dict()
 
     def generate_calculations(self):
-        calculated_results = {}
-
         for index in range(1, self.count):
-            calculated_results[index] = {
-                **self.diskstats.get_diskstats(index),
-                **self.cpustats.get_cpustats(index),
-                **self.vmstats.get_vmstats(index),
-                **self.netstats.get_netstats(index)
-            }
+            self.diskstats.get_diskstats(index, self.cpustats.get_deltams(index)),
+            self.cpustats.get_cpustats(index),
+            self.vmstats.get_vmstats(index),
+            self.netstats.get_netstats(index)
 
-        self.display_calculations(calculated_results)
-        self.run_analyzer(calculated_results)
+        #self.display_calculations()
+        self.run_analyzer()
 
-    def display_calculations(self, calculated_results):
-        for index in calculated_results.keys():
-            ts_delta = self.get_ts_delta(index)
-            last_ts = self.file_content[index]['ts']
-            curr_ts = self.file_content[index+1]['ts']
-            print("Generation completed - displaying results...")
-            print("")
-
-            start_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(last_ts))
-            end_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(curr_ts))
-            rounded_ts_delta = round(ts_delta, 4)
-
-            for statistics in calculated_results[index].keys():
+    def display_calculations(self):
+        for stat in self.calculated_results.keys():
+            for index in self.calculated_results[stat].keys():
+                rounded_ts_delta = round(int(self.get_ts_delta(index)), 4)
+                last_ts = self.file_content[index]['ts']
+                curr_ts = self.file_content[index + 1]['ts']
+                print("Generation completed - displaying results...")
+                print("")
+                start_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(last_ts))
+                end_date = time.strftime("%Z - %Y/%m/%d, %H:%M:%S", time.localtime(curr_ts))
                 print("[%s-%s] Statistics from [%s] to [%s] (Delta: %s ms)" % (
-                    statistics, index, start_date, end_date, rounded_ts_delta
+                    stat, index, start_date, end_date, rounded_ts_delta
                 ))
                 print("----------------------------------------------------------------------------------------------")
-                for stat_name, stat_values in calculated_results[index][statistics].items():
+                for stat_name, stat_values in self.calculated_results[stat][index].items():
                     print(stat_name, stat_values)
                 print("")
 
-    def run_analyzer(self, calculated_results):
+    def run_analyzer(self):
         for index in range(1, self.count):
-            self.diskstats.generate_totals(
-                diskstat_results=calculated_results[index][self.diskstats.my_metric_key]
-            )
+            self.diskstats.generate_totals(index)
 
-    def data_generator(self, sleep, count):
+        self.diskstats.generate_averages()
+
+        for stat, values in self.average_values.items():
+            print(stat)
+            for device in values:
+                print(device, {k: {
+                    "Min": self.min_values[stat][device][k],
+                    "Average": round(v, 2),
+                    "Max": self.max_values[stat][device][k]
+                } for k, v in values[device].items()})
+
+    def load_file_data(self, sleep, count):
         assert count >= 2, 'Count must be equal or greater 2'
 
         print("Will generate [%s] metrics with [%s] seconds time interval" % (count, sleep))
@@ -337,17 +354,6 @@ class Observer:
         return json.loads(open(self.path_to_json).read())
 
     def compare_values(self, metrics):
-        #print(metrics['self'].my_metric_key)
-        #exit()
-
-        # print('Device [%s] - Metric [%s] - Warning value [%s] - Critical value [%s] - Actual [%s]' % (
-        #    device,
-        #    alert_metric,
-        #    warning_value,
-        #    critical_value,
-        #    actual_value
-        # ))
-
         if metrics['actual_value'] >= metrics['critical_value']:
             print("Device [%s]: [%s] has reached critical value [%s]" % (
                 metrics['device'], metrics['alert_metric'], metrics['actual_value']
@@ -377,7 +383,7 @@ class Observer:
 if __name__ == '__main__':
     start = time.time()
     _sleep = 1
-    _count = 20
+    _count = 2
     o = Observer(sleep=_sleep, count=_count)
     o.generate_calculations()
     print("Finished calculations in [%s] seconds" % (time.time() - start - (_count - 1)))
