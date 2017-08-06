@@ -7,6 +7,7 @@ class Processes:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "processes"
+        self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
 
@@ -14,6 +15,7 @@ class CPUStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "cpustats"
+        self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
     def get_cpustats(self, index):
@@ -87,6 +89,7 @@ class VMStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "vmstats"
+        self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
     def get_vmstats(self, index):
@@ -117,6 +120,7 @@ class DiskStats:
         self.sector_size = 512
         self.observer = observer
         self.my_metric_key = 'diskstats'
+        self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
     def analyze_diskstats(self):
@@ -225,6 +229,7 @@ class NetStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "netstats"
+        self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
     def get_netstats(self, index):
@@ -251,22 +256,13 @@ class Observer:
         self.path_to_json = path_to_json
         self.alert_data = self.json_reader()
         self.system_uptime_seconds = self.get_system_uptime()
-        self.total_values = dict()
+        self.calculated_values = dict()
 
         self.diskstats = DiskStats(self)
-        self.total_values[self.diskstats.my_metric_key] = dict()
-
         self.vmstats = VMStats(self)
-        self.total_values[self.vmstats.my_metric_key] = dict()
-
         self.procceses = Processes(self)
-        self.total_values[self.procceses.my_metric_key] = dict()
-
         self.netstats = NetStats(self)
-        self.total_values[self.netstats.my_metric_key] = dict()
-
         self.cpustats = CPUStats(self)
-        self.total_values[self.cpustats.my_metric_key] = dict()
 
     def run_analyzer(self):
         self.generate_raw_stats()
@@ -297,47 +293,47 @@ class Observer:
 
         for device, device_stats in indexed_raw_metric_results.items():
             for stat_name, stat_value in device_stats.items():
-                if device not in self.total_values[my_metric_key]:
-                    self.total_values[my_metric_key][device] = {stat_name: {
+                if device not in self.calculated_values[my_metric_key]:
+                    self.calculated_values[my_metric_key][device] = {stat_name: {
                         "Sum": stat_value, "Min": 0.0, "Max": 0.0, "Avg": 0.0, "Delta": 0.0
                         } for stat_name, stat_value in device_stats.copy().items()
                     }
                     break
 
-                self.total_values[my_metric_key][device][stat_name]["Sum"] = \
-                    round((self.total_values[my_metric_key][device][stat_name]["Sum"] + float(stat_value)), 2)
+                self.calculated_values[my_metric_key][device][stat_name]["Sum"] = \
+                    round((self.calculated_values[my_metric_key][device][stat_name]["Sum"] + float(stat_value)), 2)
                 self.min_max_generator(my_metric_key, device, stat_name, stat_value)
 
     def calculate_averages(self, my_metric_key):
-        for device in self.total_values[my_metric_key]:
-            for stat_name, stat_values in self.total_values[my_metric_key][device].items():
-                self.total_values[my_metric_key][device][stat_name]["Avg"] = \
+        for device in self.calculated_values[my_metric_key]:
+            for stat_name, stat_values in self.calculated_values[my_metric_key][device].items():
+                self.calculated_values[my_metric_key][device][stat_name]["Avg"] = \
                     float(stat_values["Sum"]) / (self.count - 1)
 
     def calculate_deltas(self, my_metric_key):
-        for device in self.total_values[my_metric_key]:
-            for stat_name, stat_values in self.total_values[my_metric_key][device].items():
+        for device in self.calculated_values[my_metric_key]:
+            for stat_name, stat_values in self.calculated_values[my_metric_key][device].items():
                 first_value = self.raw_results[my_metric_key][1][device][stat_name]
                 end_value = self.raw_results[my_metric_key][self.count - 1][device][stat_name]
 
-                self.total_values[my_metric_key][device][stat_name]["Start"] = first_value
-                self.total_values[my_metric_key][device][stat_name]["End"] = end_value
-                self.total_values[my_metric_key][device][stat_name]["Delta"] = round((end_value - first_value), 2)
+                self.calculated_values[my_metric_key][device][stat_name]["Start"] = first_value
+                self.calculated_values[my_metric_key][device][stat_name]["End"] = end_value
+                self.calculated_values[my_metric_key][device][stat_name]["Delta"] = round((end_value - first_value), 2)
 
     def display_analysis(self):
-        for metric_name, metric_values in self.total_values.items():
+        for metric_name, metric_values in self.calculated_values.items():
             for device, device_stats in metric_values.items():
                 for stat_name in device_stats:
                     print(device, {stat_name: {
-                        k: v for k, v in self.total_values[metric_name][device][stat_name].items()}}
+                        k: v for k, v in self.calculated_values[metric_name][device][stat_name].items()}}
                     )
 
     def min_max_generator(self, my_metric_key, device, stat_name, stat_value):
-        if float(self.total_values[my_metric_key][device][stat_name]["Min"]) > float(stat_value):
-            self.total_values[my_metric_key][device][stat_name]["Min"] = round(float(stat_value), 2)
+        if float(self.calculated_values[my_metric_key][device][stat_name]["Min"]) > float(stat_value):
+            self.calculated_values[my_metric_key][device][stat_name]["Min"] = round(float(stat_value), 2)
 
-        if float(self.total_values[my_metric_key][device][stat_name]["Max"]) < float(stat_value):
-            self.total_values[my_metric_key][device][stat_name]["Max"] = round(float(stat_value), 2)
+        if float(self.calculated_values[my_metric_key][device][stat_name]["Max"]) < float(stat_value):
+            self.calculated_values[my_metric_key][device][stat_name]["Max"] = round(float(stat_value), 2)
 
     def file_reader(self, index):
         print("Generating metrics with index [%s]" % index)
