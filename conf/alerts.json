@@ -16,6 +16,10 @@
       "warning": "9999",
       "critical": "9999"
     },
+    "iops": {
+      "warning": "9999",
+      "critical": "9999"
+    },
     "rkB/s": {
       "warning": "9999",
       "critical": "9999"
@@ -51,10 +55,86 @@
     "%util": {
       "warning": "70",
       "critical": "90"
+    },
+    "f_bsize": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_frsize": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_blocks": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_bfree": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_bavail": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_files": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_ffree": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_favail": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_flag": {
+      "warning": "70",
+      "critical": "90"
+    },
+    "f_namemax": {
+      "warning": "70",
+      "critical": "90"
     }
   },
   "cpustats": {
-    "cpu": {
+    "%usr": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%nice": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%gnice": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%guest": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%steal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%soft": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%irq": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%iowait": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%sys": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "%idle": {
       "warning": "70",
       "critical": "100"
     }
@@ -64,19 +144,537 @@
       "warning": "70",
       "critical": "100"
     },
-    "loadavg": {
-      "one_min": {
-        "warning": "70",
-        "critical": "100"
-      },
-      "five_min": {
-        "warning": "70",
-        "critical": "100"
-      },
-      "fifteen_min": {
-        "warning": "70",
-        "critical": "100"
-      }
+    "load_one_min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "load_five_min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "load_fifteen_min": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "entities_total": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_free_pages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "proc_scheduled": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_inactive_anon": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_active_anon": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_inactive_file": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_active_file": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_unevictable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zone_write_pending": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_mlock": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_slab_reclaimable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_slab_unreclaimable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_page_table_pages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_kernel_stack": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_bounce": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_zspages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_hit": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_miss": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_foreign": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_interleave": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_local": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_other": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_free_cma": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_inactive_anon": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_active_anon": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_inactive_file": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_active_file": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_unevictable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_isolated_anon": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_isolated_file": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_pages_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "workingset_refault": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "workingset_activate": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "workingset_nodereclaim": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_anon_pages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_mapped": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_file_pages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_dirty": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_writeback": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_writeback_temp": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_shmem": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_shmem_hugepages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_shmem_pmdmapped": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_anon_transparent_hugepages": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_unstable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_vmscan_write": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_vmscan_immediate_reclaim": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_dirtied": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_written": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_dirty_threshold": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "nr_dirty_background_threshold": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgpgin": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgpgout": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pswpin": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pswpout": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgalloc_dma": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgalloc_dma32": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgalloc_normal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgalloc_movable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "allocstall_dma": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "allocstall_dma32": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "allocstall_normal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "allocstall_movable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgskip_dma": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgskip_dma32": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgskip_normal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgskip_movable": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgfree": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgactivate": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgdeactivate": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgfault": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgmajfault": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pglazyfreed": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgrefill": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgsteal_kswapd": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgsteal_direct": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgscan_kswapd": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgscan_direct": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgscan_direct_throttle": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "zone_reclaim_failed": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pginodesteal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "slabs_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "kswapd_inodesteal": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "kswapd_low_wmark_hit_quickly": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "kswapd_high_wmark_hit_quickly": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pageoutrun": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgrotated": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "drop_pagecache": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "drop_slab": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_pte_updates": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_huge_pte_updates": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_hint_faults": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_hint_faults_local": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "numa_pages_migrated": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgmigrate_success": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "pgmigrate_fail": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_migrate_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_free_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_isolated": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_stall": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_fail": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_success": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_daemon_wake": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_daemon_migrate_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "compact_daemon_free_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "htlb_buddy_alloc_success": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "htlb_buddy_alloc_fail": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_culled": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_scanned": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_rescued": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_mlocked": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_munlocked": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_cleared": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "unevictable_pgs_stranded": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_fault_alloc": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_fault_fallback": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_collapse_alloc": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_collapse_alloc_failed": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_file_alloc": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_file_mapped": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_split_page": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_split_page_failed": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_deferred_split_page": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_split_pmd": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_split_pud": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_zero_page_alloc": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "thp_zero_page_alloc_failed": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "balloon_inflate": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "balloon_deflate": {
+      "warning": "70",
+      "critical": "100"
+    },
+    "balloon_migrate": {
+      "warning": "70",
+      "critical": "100"
     }
   },
   "netstats": {
