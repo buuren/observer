@@ -142,8 +142,9 @@ class DiskStats:
         disk_curr = self.disk_io_counters(index + 1)
 
         for device in disk_curr.keys():
+            print(device)
             calculations = {
-                k: round(v, 2) for k, v in self.calc(
+                k: round(v, 2) for k, v in self.calc_disk_stats(
                     last=disk_last[device],
                     curr=disk_curr[device],
                     ts_delta=self.observer.get_ts_delta(index),
@@ -154,7 +155,7 @@ class DiskStats:
 
         self.observer.raw_results[self.my_metric_key][index] = disk_stats
 
-    def calc(self, last, curr, ts_delta, deltams):
+    def calc_disk_stats(self, last, curr, ts_delta, deltams):
         disk_stats = {}
 
         def delta(field):
@@ -198,28 +199,49 @@ class DiskStats:
         disk_stats['f_flag'] = last['f_flag']
         disk_stats['f_namemax'] = last['f_namemax']
 
+        disk_stats['total_gb'] = round((int(last['f_blocks']) * int(last['f_frsize'])) / 1073741824, 2)
+        disk_stats['available_gb'] = round((int(last['f_bavail']) * int(last['f_frsize'])) / 1073741824, 2)
+        disk_stats['free_gb'] = round((int(last['f_bfree']) * int(last['f_frsize'])) / 1073741824, 2)
+        disk_stats['used_gb'] = round(int(disk_stats['total_gb']) - int(disk_stats['available_gb']), 2)
+        disk_stats['%used'] = round((int(disk_stats['used_gb']) / int(disk_stats['total_gb'])) * 100, 2)
+
         return disk_stats
+
+    def disk_device_data(self, mounts_file_content):
+        return {
+            x.split()[0]: {
+                "device_name": x.split()[0],
+                "mount_point": x.split()[1],
+                "fs_type": x.split()[2],
+                "mount_opts": ' '.join(x.split()[3:])
+            } for x in mounts_file_content
+        }
 
     def disk_io_counters(self, index):
         read_partitions = self.observer.file_content[index]['/proc/partitions'][2:]
         partitions = set([part.split()[-1] for part in read_partitions if not isinstance(part.strip()[-1], int)])
 
+        disk_device_data = self.disk_device_data(self.observer.file_content[index]['/proc/mounts'])
         read_diskstats = self.observer.file_content[index]['/proc/diskstats']
-        disk_stats = [self.parse_diskstats(line) for line in read_diskstats]
+        disk_stats = [self.parse_diskstats(line, disk_device_data) for line in read_diskstats]
         disk_stats = {stat['dev']: stat for stat in disk_stats if stat['dev'] in partitions}
-
+        #disk_stats = {k: {p: s for p, s in v.items()} for k, v in disk_stats.items()}
+        print(disk_stats)
+        exit()
         return disk_stats
 
     @staticmethod
-    def parse_diskstats(line):
+    def parse_diskstats(line, disk_device_data):
         major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, \
             w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
 
-        disk_usage_stats = os.statvfs("/dev/%s" % dev)
-        f_bsize, f_frsize, f_blocks, f_bfree, f_bavail, f_files, f_ffree, f_favail, f_flag, f_namemax = [
-            x for x in tuple(disk_usage_stats)]
+        print(disk_device_data["/dev/%s" % dev])
+        exit()
 
-        del line, disk_usage_stats
+        f_bsize, f_frsize, f_blocks, f_bfree, f_bavail, f_files, f_ffree, f_favail, f_flag, f_namemax = [
+            x for x in tuple(os.statvfs("/dev/%s" % dev))]
+
+        del line
         d = {k: v for k, v in locals().items()}
 
         return d
@@ -244,14 +266,15 @@ class Observer:
         self.count = count
         self.file_content = dict()
         self.raw_results = dict()
-        self.proc_file_dictionary = {
-            "/proc/diskstats": "/proc/diskstats",
-            "/proc/partitions": "/proc/partitions",
-            "/proc/stat": "/proc/stat",
-            "/proc/loadavg": "/proc/loadavg",
-            "/proc/vmstat": "/proc/vmstat"
+        self.proc_file_dictionary = [
+            "/proc/diskstats",
+            "/proc/partitions",
+            "/proc/stat",
+            "/proc/loadavg",
+            "/proc/vmstat",
+            "/proc/mounts"
+        ]
 
-        }
         self.file_content = self.load_file_data(sleep, count)
         self.path_to_json = path_to_json
         self.alert_data = self.json_reader()
@@ -280,7 +303,7 @@ class Observer:
         self.calculate_deltas(self.cpustats.my_metric_key)
         self.calculate_deltas(self.vmstats.my_metric_key)
 
-        self.display_analysis()
+        #self.display_analysis()
 
     def generate_raw_stats(self):
         for index in range(1, self.count):
@@ -295,7 +318,11 @@ class Observer:
             for stat_name, stat_value in device_stats.items():
                 if device not in self.calculated_values[my_metric_key]:
                     self.calculated_values[my_metric_key][device] = {stat_name: {
-                        "Sum": stat_value, "Min": 0.0, "Max": 0.0, "Avg": 0.0, "Delta": 0.0
+                        "Sum": stat_value,
+                        "Min": stat_value,
+                        "Max": stat_value,
+                        "Avg": stat_value,
+                        "Delta": 0.0
                         } for stat_name, stat_value in device_stats.copy().items()
                     }
                     break
@@ -337,10 +364,12 @@ class Observer:
 
     def file_reader(self, index):
         print("Generating metrics with index [%s]" % index)
-        for proc, file_name in self.proc_file_dictionary.items():
-            with open(file_name) as f:
-                self.file_content[index][proc] = f.readlines()
-                self.file_content[index]['ts'] = os.stat(f.name).st_mtime
+
+        self.file_content[index]['ts'] = time.time()
+
+        for file_name in self.proc_file_dictionary:
+            self.file_content[index][file_name] = self.get_file_content(file_name)
+
 
     def get_ts_delta(self, index):
         return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
@@ -379,16 +408,19 @@ class Observer:
     def get_system_uptime():
         with open('/proc/uptime', 'r') as f:
             uptime_seconds = float(f.readline().split()[0])
-
         return uptime_seconds
 
     def json_reader(self):
         return json.loads(open(self.path_to_json).read())
 
+    def get_file_content(self, file_name):
+        with open(file_name) as f:
+            return f.readlines()
+
 if __name__ == '__main__':
     start = time.time()
     _sleep = 1
-    _count = 5
+    _count = 2
     o = Observer(sleep=_sleep, count=_count)
     o.run_analyzer()
     print("Finished calculations in [%s] seconds" % (time.time() - start - (_count - 1)))
