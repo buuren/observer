@@ -3,6 +3,7 @@ import time
 import json
 
 
+
 class Processes:
     def __init__(self, observer):
         self.observer = observer
@@ -96,6 +97,17 @@ class VMStats:
         vmstats = self.vmstat_counters(index)
         self.observer.raw_results[self.my_metric_key][index] = vmstats
 
+    def vmstat_counters(self, index):
+        read_loadvg = self.observer.file_content[index]['/proc/loadavg'][0]
+        read_vmstat = self.observer.file_content[index]['/proc/vmstat']
+        read_meminfo = self.observer.file_content[index]['/proc/meminfo']
+
+        vmstats = dict()
+        vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
+        vmstats['vmstat'] = {stat.split()[0]: int(stat.split()[1]) for stat in read_vmstat}
+        vmstats['meminfo'] = {self.parse_meminfo(line) for line in read_meminfo}
+        return vmstats
+
     @staticmethod
     def parse_loadavg(line):
         load_one_min, load_five_min, load_fifteen_min, curr_proc, last_proc_id = line.split()
@@ -105,14 +117,12 @@ class VMStats:
         d = {k: float(v) for k, v in locals().items()}
         return d
 
-    def vmstat_counters(self, index):
-        read_loadvg = self.observer.file_content[index]['/proc/loadavg'][0]
-        read_vmstat = self.observer.file_content[index]['/proc/vmstat']
-
-        vmstats = dict()
-        vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
-        vmstats['vmstat'] = {stat.split()[0]: int(stat.split()[1]) for stat in read_vmstat}
-        return vmstats
+    @staticmethod
+    def parse_meminfo(line):
+        mem_stat, mem_value = line.split()
+        del line
+        d = {k: float(v/1024/1024) for k, v in locals().items()}
+        return d
 
 
 class DiskStats:
@@ -123,26 +133,12 @@ class DiskStats:
         self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_results[self.my_metric_key] = dict()
 
-    def analyze_diskstats(self):
-        my_alert_data = self.observer.alert_data[self.my_metric_key]
-
-        for alert_metric, alert_value in my_alert_data.items():
-            warning_value = int(alert_value['warning'])
-            critical_value = int(alert_value['critical'])
-
-            for device, device_stats in self.observer.average_values[self.my_metric_key].items():
-                actual_value = int(device_stats[alert_metric])
-                self.observer.compare_values(
-                    metrics=locals()
-                )
-
     def get_diskstats(self, index, deltams):
         disk_stats = dict()
         disk_last = self.disk_io_counters(index)
         disk_curr = self.disk_io_counters(index + 1)
 
         for device in disk_curr.keys():
-            print(device)
             calculations = {
                 k: round(v, 2) for k, v in self.calc_disk_stats(
                     last=disk_last[device],
@@ -207,45 +203,81 @@ class DiskStats:
 
         return disk_stats
 
-    def disk_device_data(self, mounts_file_content):
-        return {
-            x.split()[0]: {
-                "device_name": x.split()[0],
-                "mount_point": x.split()[1],
-                "fs_type": x.split()[2],
-                "mount_opts": ' '.join(x.split()[3:])
-            } for x in mounts_file_content
-        }
-
     def disk_io_counters(self, index):
-        read_partitions = self.observer.file_content[index]['/proc/partitions'][2:]
-        partitions = set([part.split()[-1] for part in read_partitions if not isinstance(part.strip()[-1], int)])
-
-        disk_device_data = self.disk_device_data(self.observer.file_content[index]['/proc/mounts'])
-        read_diskstats = self.observer.file_content[index]['/proc/diskstats']
-        disk_stats = [self.parse_diskstats(line, disk_device_data) for line in read_diskstats]
-        disk_stats = {stat['dev']: stat for stat in disk_stats if stat['dev'] in partitions}
-        #disk_stats = {k: {p: s for p, s in v.items()} for k, v in disk_stats.items()}
-        print(disk_stats)
-        exit()
+        disk_stats = self.parse_diskstats(index)
+        disk_stats = self.parse_partitions(index, disk_stats)  # List of all disk devices
+        disk_stats = self.parse_mounts(index, disk_stats)          # List of mounted devices
         return disk_stats
 
-    @staticmethod
-    def parse_diskstats(line, disk_device_data):
-        major, minor, dev, r_ios, r_merges, r_sec, r_ticks, w_ios, w_merges, \
-            w_sec, w_ticks, ios_pgr, tot_ticks, rq_ticks = line.split()
+    def parse_diskstats(self, index):
+        return {
+            line.split()[2]: {
+                "major": line.split()[0],
+                "minor": line.split()[1],
+                "r_ios": line.split()[3],
+                "r_merges":  line.split()[4],
+                "r_sec": line.split()[5],
+                "r_ticks": line.split()[6],
+                "w_ios": line.split()[7],
+                "w_merges": line.split()[8],
+                "w_sec": line.split()[9],
+                "w_ticks": line.split()[10],
+                "ios_pgr": line.split()[11],
+                "tot_ticks": line.split()[12],
+                "rq_ticks": line.split()[13],
+            } for line in self.observer.file_content[index]['/proc/diskstats']
+        }
 
-        print(disk_device_data["/dev/%s" % dev])
-        exit()
-
+    def extract_stavs(self, index, disk_device):
         f_bsize, f_frsize, f_blocks, f_bfree, f_bavail, f_files, f_ffree, f_favail, f_flag, f_namemax = [
-            x for x in tuple(os.statvfs("/dev/%s" % dev))]
+            x for x in tuple(os.statvfs(disk_device))
+        ]
 
-        del line
+        del disk_device, index, self
         d = {k: v for k, v in locals().items()}
-
         return d
 
+    def parse_partitions(self, index, read_diskstats):
+        d = {
+            part.split()[-1]: {
+                "#blocks": part.split()[-2],
+                "minor": part.split()[-3],
+                "major": part.split()[-4]
+            } for part in self.observer.file_content[index]['/proc/partitions'][2:]
+            if not isinstance(part.strip()[-1], int)
+        }
+
+        for key in read_diskstats.keys():
+            read_diskstats[key] = {**read_diskstats[key], **(d[key])}
+
+        return read_diskstats
+
+    def parse_mounts(self, index, read_partitions):
+        d = {
+            device_data.split()[0]: {
+                "mount_point": device_data.split()[1],
+                "fs_type": device_data.split()[2],
+                "mount_opts": ' '.join(device_data.split()[3:])
+            } for device_data in self.observer.file_content[index]['/proc/mounts']
+        }
+
+        for key in d.keys():
+            print(d[key]['mount_point'])
+            continue
+
+            if '/dev/%s' % key in d.keys():
+                read_partitions[key] = {
+                    **read_partitions[key],
+                    **(d['/dev/%s' % key]),
+                    **self.extract_stavs(index, d['/dev/%s' % key]['mount_point'])
+                }
+            else:
+                read_partitions[key] = {
+                    **(d['/dev/%s' % key]),
+                    **read_partitions[key]
+                }
+        exit()
+        return read_partitions
 
 class NetStats:
     def __init__(self, observer):
@@ -272,6 +304,7 @@ class Observer:
             "/proc/stat",
             "/proc/loadavg",
             "/proc/vmstat",
+            "/proc/meminfo",
             "/proc/mounts"
         ]
 
@@ -369,7 +402,6 @@ class Observer:
 
         for file_name in self.proc_file_dictionary:
             self.file_content[index][file_name] = self.get_file_content(file_name)
-
 
     def get_ts_delta(self, index):
         return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
