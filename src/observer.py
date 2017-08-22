@@ -102,10 +102,12 @@ class VMStats:
         read_vmstat = self.observer.file_content[index]['/proc/vmstat']
         read_meminfo = self.observer.file_content[index]['/proc/meminfo']
 
+        print(read_meminfo)
+
         vmstats = dict()
         vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
         vmstats['vmstat'] = {stat.split()[0]: int(stat.split()[1]) for stat in read_vmstat}
-        vmstats['meminfo'] = {self.parse_meminfo(line) for line in read_meminfo}
+        vmstats['meminfo'] = self.parse_meminfo(read_meminfo)
         return vmstats
 
     @staticmethod
@@ -118,10 +120,12 @@ class VMStats:
         return d
 
     @staticmethod
-    def parse_meminfo(line):
-        mem_stat, mem_value = line.split()
-        del line
-        d = {k: float(v/1024/1024) for k, v in locals().items()}
+    def parse_meminfo(read_meminfo):
+        d = {}
+        for line in read_meminfo:
+            d.update({'mem_stat': line.split()[0], 'mem_stat_value': line.split()[1]})
+
+        d = {k: v for k, v in locals().items()}
         return d
 
 
@@ -144,7 +148,7 @@ class DiskStats:
                     last=disk_last[device],
                     curr=disk_curr[device],
                     ts_delta=self.observer.get_ts_delta(index),
-                    deltams=deltams
+                    deltams=deltams,
                 ).items()
             }
             disk_stats[device] = calculations
@@ -154,52 +158,62 @@ class DiskStats:
     def calc_disk_stats(self, last, curr, ts_delta, deltams):
         disk_stats = {}
 
-        def delta(field):
-            return (int(curr[field]) - int(last[field])) / ts_delta
+        def calc_iops():
 
-        disk_stats['rrqm/s'] = delta('r_merges')
-        disk_stats['wrqm/s'] = delta('w_merges')
-        disk_stats['r/s'] = delta('r_ios')
-        disk_stats['w/s'] = delta('w_ios')
-        disk_stats['iops'] = int(disk_stats['r/s']) + int(disk_stats['w/s'])
-        disk_stats['rkB/s'] = delta('r_sec') * self.sector_size / 1024
-        disk_stats['wkB/s'] = delta('w_sec') * self.sector_size / 1024
-        disk_stats['avgrq-sz'] = 0
-        disk_stats['avgqu-sz'] = delta('rq_ticks') / 1000
+            def delta(field):
+                return (int(curr[field]) - int(last[field])) / ts_delta
 
-        if disk_stats['r/s'] + disk_stats['w/s'] > 0:
-            disk_stats['avgrq-sz'] = (delta('r_sec') + delta('w_sec')) / (delta('r_ios') + delta('w_ios'))
-            disk_stats['await'] = (delta('r_ticks') + delta('w_ticks')) / (delta('r_ios') + delta('w_ios'))
-            disk_stats['r_await'] = delta('r_ticks') / delta('r_ios') if delta('r_ios') > 0 else 0
-            disk_stats['w_await'] = delta('w_ticks') / delta('w_ios') if delta('w_ios') > 0 else 0
-            disk_stats['svctm'] = delta('tot_ticks') / (delta('r_ios') + delta('w_ios'))
-        else:
+            disk_stats['rrqm/s'] = delta('r_merges')
+            disk_stats['wrqm/s'] = delta('w_merges')
+            disk_stats['r/s'] = delta('r_ios')
+            disk_stats['w/s'] = delta('w_ios')
+            disk_stats['iops'] = int(disk_stats['r/s']) + int(disk_stats['w/s'])
+            disk_stats['rkB/s'] = delta('r_sec') * self.sector_size / 1024
+            disk_stats['wkB/s'] = delta('w_sec') * self.sector_size / 1024
             disk_stats['avgrq-sz'] = 0
-            disk_stats['await'] = 0
-            disk_stats['r_await'] = 0
-            disk_stats['w_await'] = 0
-            disk_stats['svctm'] = 0
+            disk_stats['avgqu-sz'] = delta('rq_ticks') / 1000
 
-        blkio_ticks = int(curr["tot_ticks"]) - int(last["tot_ticks"])
-        util = (100 * blkio_ticks / deltams) if (100 * blkio_ticks / deltams) < 100 else 100
-        disk_stats['%util'] = util
+            if disk_stats['r/s'] + disk_stats['w/s'] > 0:
+                disk_stats['avgrq-sz'] = (delta('r_sec') + delta('w_sec')) / (delta('r_ios') + delta('w_ios'))
+                disk_stats['await'] = (delta('r_ticks') + delta('w_ticks')) / (delta('r_ios') + delta('w_ios'))
+                disk_stats['r_await'] = delta('r_ticks') / delta('r_ios') if delta('r_ios') > 0 else 0
+                disk_stats['w_await'] = delta('w_ticks') / delta('w_ios') if delta('w_ios') > 0 else 0
+                disk_stats['svctm'] = delta('tot_ticks') / (delta('r_ios') + delta('w_ios'))
+            else:
+                disk_stats['avgrq-sz'] = 0
+                disk_stats['await'] = 0
+                disk_stats['r_await'] = 0
+                disk_stats['w_await'] = 0
+                disk_stats['svctm'] = 0
 
-        disk_stats['f_blocks'] = last['f_blocks']
-        disk_stats['f_bsize'] = last['f_bsize']
-        disk_stats['f_frsize'] = last['f_frsize']
-        disk_stats['f_bfree'] = last['f_bfree']
-        disk_stats['f_bavail'] = last['f_bavail']
-        disk_stats['f_files'] = last['f_files']
-        disk_stats['f_ffree'] = last['f_ffree']
-        disk_stats['f_favail'] = last['f_favail']
-        disk_stats['f_flag'] = last['f_flag']
-        disk_stats['f_namemax'] = last['f_namemax']
+            blkio_ticks = int(curr["tot_ticks"]) - int(last["tot_ticks"])
+            util = (100 * blkio_ticks / deltams) if (100 * blkio_ticks / deltams) < 100 else 100
+            disk_stats['%util'] = util
 
-        disk_stats['total_gb'] = round((int(last['f_blocks']) * int(last['f_frsize'])) / 1073741824, 2)
-        disk_stats['available_gb'] = round((int(last['f_bavail']) * int(last['f_frsize'])) / 1073741824, 2)
-        disk_stats['free_gb'] = round((int(last['f_bfree']) * int(last['f_frsize'])) / 1073741824, 2)
-        disk_stats['used_gb'] = round(int(disk_stats['total_gb']) - int(disk_stats['available_gb']), 2)
-        disk_stats['%used'] = round((int(disk_stats['used_gb']) / int(disk_stats['total_gb'])) * 100, 2)
+        def calc_storage_stats():
+            disk_stats['f_blocks'] = last['f_blocks']
+            disk_stats['f_bsize'] = last['f_bsize']
+            disk_stats['f_frsize'] = last['f_frsize']
+            disk_stats['f_bfree'] = last['f_bfree']
+            disk_stats['f_bavail'] = last['f_bavail']
+            disk_stats['f_files'] = last['f_files']
+            disk_stats['f_ffree'] = last['f_ffree']
+            disk_stats['f_favail'] = last['f_favail']
+            disk_stats['f_flag'] = last['f_flag']
+            disk_stats['f_namemax'] = last['f_namemax']
+
+            disk_stats['total_gb'] = round((float(last['f_blocks']) * float(last['f_frsize'])) / 1073741824, 2)
+            disk_stats['available_gb'] = round((float(last['f_bavail']) * float(last['f_frsize'])) / 1073741824, 2)
+            disk_stats['free_gb'] = round((float(last['f_bfree']) * float(last['f_frsize'])) / 1073741824, 2)
+            disk_stats['used_gb'] = round(float(disk_stats['total_gb']) - float(disk_stats['available_gb']), 2)
+            disk_stats['%used'] = round((float(disk_stats['used_gb']) / float(disk_stats['total_gb'])) * 100, 2
+                                        ) if float(disk_stats['total_gb']) > 0 else 0
+
+        if 'r_merges' in last.keys():
+            calc_iops()
+
+        if 'f_blocks' in last.keys():
+            calc_storage_stats()
 
         return disk_stats
 
@@ -262,21 +276,21 @@ class DiskStats:
         }
 
         for key in d.keys():
-            print(d[key]['mount_point'])
-            continue
+            statvfs_values = self.extract_stavs(index, d[key]['mount_point'])
+            partition_name = key.split('/dev/')[-1]
 
-            if '/dev/%s' % key in d.keys():
-                read_partitions[key] = {
-                    **read_partitions[key],
-                    **(d['/dev/%s' % key]),
-                    **self.extract_stavs(index, d['/dev/%s' % key]['mount_point'])
+            if partition_name in read_partitions.keys():
+                read_partitions[partition_name] = {
+                    **read_partitions[partition_name],
+                    **(d[key]),
+                    **statvfs_values
                 }
             else:
                 read_partitions[key] = {
-                    **(d['/dev/%s' % key]),
-                    **read_partitions[key]
+                    **(d[key]),
+                    **statvfs_values
                 }
-        exit()
+
         return read_partitions
 
 class NetStats:
