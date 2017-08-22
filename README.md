@@ -1,5 +1,7 @@
 # Observer
 
+https://travis-ci.org/buuren/observer.svg?branch=master
+
 Linux performance analysis and alerting tool
 
 Objective: create a single and easy deployable script to debug and analyze performance statistics
