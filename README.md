@@ -1,6 +1,6 @@
 # Observer
 
-https://travis-ci.org/buuren/observer.svg?branch=master
+[![Build Status](https://travis-ci.org/buuren/observer.svg?branch=master)](https://travis-ci.org/buuren/observer)
 
 Linux performance analysis and alerting tool
 
