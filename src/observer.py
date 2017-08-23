@@ -3,7 +3,6 @@ import time
 import json
 
 
-
 class Processes:
     def __init__(self, observer):
         self.observer = observer
@@ -26,7 +25,7 @@ class CPUStats:
 
         for device in cpu_curr.keys():
             calculations = {
-                k: round(v, 2) for k, v in self.cpustats_calc(
+                k: round(v, self.observer.r_prec) for k, v in self.cpustats_calc(
                     last=cpu_last[device],
                     curr=cpu_curr[device]
                 ).items()
@@ -102,30 +101,23 @@ class VMStats:
         read_vmstat = self.observer.file_content[index]['/proc/vmstat']
         read_meminfo = self.observer.file_content[index]['/proc/meminfo']
 
-        print(read_meminfo)
-
         vmstats = dict()
         vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
         vmstats['vmstat'] = {stat.split()[0]: int(stat.split()[1]) for stat in read_vmstat}
-        vmstats['meminfo'] = self.parse_meminfo(read_meminfo)
+        vmstats['meminfo'] = {
+            line.split()[0].replace(":", ""): round(int(line.split()[1])/1024/1024, self.observer.r_prec)
+            for line in read_meminfo
+        }
+
         return vmstats
 
     @staticmethod
     def parse_loadavg(line):
-        load_one_min, load_five_min, load_fifteen_min, curr_proc, last_proc_id = line.split()
+        load_1_min, load_5_min, load_15_min, curr_proc, last_proc_id = line.split()
         proc_scheduled = curr_proc.split('/')[0]
         entities_total = curr_proc.split('/')[1]
         del line, curr_proc, last_proc_id
         d = {k: float(v) for k, v in locals().items()}
-        return d
-
-    @staticmethod
-    def parse_meminfo(read_meminfo):
-        d = {}
-        for line in read_meminfo:
-            d.update({'mem_stat': line.split()[0], 'mem_stat_value': line.split()[1]})
-
-        d = {k: v for k, v in locals().items()}
         return d
 
 
@@ -144,7 +136,7 @@ class DiskStats:
 
         for device in disk_curr.keys():
             calculations = {
-                k: round(v, 2) for k, v in self.calc_disk_stats(
+                k: round(v, self.observer.r_prec) for k, v in self.calc_disk_stats(
                     last=disk_last[device],
                     curr=disk_curr[device],
                     ts_delta=self.observer.get_ts_delta(index),
@@ -190,7 +182,7 @@ class DiskStats:
             util = (100 * blkio_ticks / deltams) if (100 * blkio_ticks / deltams) < 100 else 100
             disk_stats['%util'] = util
 
-        def calc_storage_stats():
+        def calc_storage_stats(self):
             disk_stats['f_blocks'] = last['f_blocks']
             disk_stats['f_bsize'] = last['f_bsize']
             disk_stats['f_frsize'] = last['f_frsize']
@@ -202,12 +194,17 @@ class DiskStats:
             disk_stats['f_flag'] = last['f_flag']
             disk_stats['f_namemax'] = last['f_namemax']
 
-            disk_stats['total_gb'] = round((float(last['f_blocks']) * float(last['f_frsize'])) / 1073741824, 2)
-            disk_stats['available_gb'] = round((float(last['f_bavail']) * float(last['f_frsize'])) / 1073741824, 2)
-            disk_stats['free_gb'] = round((float(last['f_bfree']) * float(last['f_frsize'])) / 1073741824, 2)
-            disk_stats['used_gb'] = round(float(disk_stats['total_gb']) - float(disk_stats['available_gb']), 2)
-            disk_stats['%used'] = round((float(disk_stats['used_gb']) / float(disk_stats['total_gb'])) * 100, 2
-                                        ) if float(disk_stats['total_gb']) > 0 else 0
+            disk_stats['total_gb'] = round(
+                (float(last['f_blocks']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+            disk_stats['available_gb'] = round(
+                (float(last['f_bavail']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+            disk_stats['free_gb'] = round(
+                (float(last['f_bfree']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+            disk_stats['used_gb'] = round(
+                float(disk_stats['total_gb']) - float(disk_stats['available_gb']), self.observer.r_prec)
+            disk_stats['%used'] = round(
+                (float(disk_stats['used_gb']) / float(disk_stats['total_gb'])) * 100, self.observer.r_prec) \
+                if float(disk_stats['total_gb']) > 0 else 0
 
         if 'r_merges' in last.keys():
             calc_iops()
@@ -293,6 +290,7 @@ class DiskStats:
 
         return read_partitions
 
+
 class NetStats:
     def __init__(self, observer):
         self.observer = observer
@@ -307,9 +305,10 @@ class NetStats:
 
 
 class Observer:
-    def __init__(self, sleep, count, path_to_json="conf/alerts.json"):
+    def __init__(self, sleep, count, round_precision=2, path_to_json="conf/alerts.json"):
         self.sleep = sleep
         self.count = count
+        self.r_prec = round_precision
         self.file_content = dict()
         self.raw_results = dict()
         self.proc_file_dictionary = [
@@ -337,7 +336,7 @@ class Observer:
     def run_analyzer(self):
         self.generate_raw_stats()
 
-        for index in range(1, self.count):
+        for index in range(0, self.count):
             self.generate_totals(self.diskstats.my_metric_key, index)
             self.generate_totals(self.cpustats.my_metric_key, index)
             self.generate_totals(self.vmstats.my_metric_key, index)
@@ -350,10 +349,10 @@ class Observer:
         self.calculate_deltas(self.cpustats.my_metric_key)
         self.calculate_deltas(self.vmstats.my_metric_key)
 
-        #self.display_analysis()
+        self.display_analysis()
 
     def generate_raw_stats(self):
-        for index in range(1, self.count):
+        for index in range(0, self.count):
             self.diskstats.get_diskstats(index, self.cpustats.get_deltams(index)),
             self.cpustats.get_cpustats(index)
             self.vmstats.get_vmstats(index)
@@ -368,52 +367,50 @@ class Observer:
                         "Sum": stat_value,
                         "Min": stat_value,
                         "Max": stat_value,
-                        "Avg": stat_value,
-                        "Delta": 0.0
+                        "Avg": stat_value
                         } for stat_name, stat_value in device_stats.copy().items()
                     }
                     break
 
-                self.calculated_values[my_metric_key][device][stat_name]["Sum"] = \
-                    round((self.calculated_values[my_metric_key][device][stat_name]["Sum"] + float(stat_value)), 2)
+                self.calculated_values[my_metric_key][device][stat_name]["Sum"] = round(
+                    (self.calculated_values[my_metric_key][device][stat_name]["Sum"] + float(stat_value)), self.r_prec)
                 self.min_max_generator(my_metric_key, device, stat_name, stat_value)
 
     def calculate_averages(self, my_metric_key):
         for device in self.calculated_values[my_metric_key]:
             for stat_name, stat_values in self.calculated_values[my_metric_key][device].items():
                 self.calculated_values[my_metric_key][device][stat_name]["Avg"] = \
-                    float(stat_values["Sum"]) / (self.count - 1)
+                    round(float(stat_values["Sum"]) / self.count, self.r_prec)
 
     def calculate_deltas(self, my_metric_key):
         for device in self.calculated_values[my_metric_key]:
             for stat_name, stat_values in self.calculated_values[my_metric_key][device].items():
-                first_value = self.raw_results[my_metric_key][1][device][stat_name]
-                end_value = self.raw_results[my_metric_key][self.count - 1][device][stat_name]
+                first_value = self.raw_results[my_metric_key][0][device][stat_name]
+                end_value = self.raw_results[my_metric_key][self.count-1][device][stat_name]
 
                 self.calculated_values[my_metric_key][device][stat_name]["Start"] = first_value
                 self.calculated_values[my_metric_key][device][stat_name]["End"] = end_value
-                self.calculated_values[my_metric_key][device][stat_name]["Delta"] = round((end_value - first_value), 2)
+                self.calculated_values[my_metric_key][device][stat_name]["Delta"] = round(
+                    (end_value - first_value), self.r_prec)
 
     def display_analysis(self):
         for metric_name, metric_values in self.calculated_values.items():
             for device, device_stats in metric_values.items():
                 for stat_name in device_stats:
-                    print(device, {stat_name: {
+                    print(metric_name, device, {stat_name: {
                         k: v for k, v in self.calculated_values[metric_name][device][stat_name].items()}}
                     )
 
     def min_max_generator(self, my_metric_key, device, stat_name, stat_value):
         if float(self.calculated_values[my_metric_key][device][stat_name]["Min"]) > float(stat_value):
-            self.calculated_values[my_metric_key][device][stat_name]["Min"] = round(float(stat_value), 2)
+            self.calculated_values[my_metric_key][device][stat_name]["Min"] = round(float(stat_value), self.r_prec)
 
         if float(self.calculated_values[my_metric_key][device][stat_name]["Max"]) < float(stat_value):
-            self.calculated_values[my_metric_key][device][stat_name]["Max"] = round(float(stat_value), 2)
+            self.calculated_values[my_metric_key][device][stat_name]["Max"] = round(float(stat_value), self.r_prec)
 
     def file_reader(self, index):
-        print("Generating metrics with index [%s]" % index)
-
+        print("Loading proc statistics [index: %s]" % index)
         self.file_content[index]['ts'] = time.time()
-
         for file_name in self.proc_file_dictionary:
             self.file_content[index][file_name] = self.get_file_content(file_name)
 
@@ -440,7 +437,7 @@ class Observer:
         assert count >= 2, 'Count must be equal or greater 2'
 
         print("Will generate [%s] metrics with [%s] seconds time interval" % (count, sleep))
-        for index in range(1, count):
+        for index in range(0, count):
             self.file_content[index] = dict()
             self.file_reader(index)
             time.sleep(sleep)
@@ -463,10 +460,11 @@ class Observer:
         with open(file_name) as f:
             return f.readlines()
 
+
 if __name__ == '__main__':
     start = time.time()
     _sleep = 1
     _count = 2
     o = Observer(sleep=_sleep, count=_count)
     o.run_analyzer()
-    print("Finished calculations in [%s] seconds" % (time.time() - start - (_count - 1)))
+    print("Finished calculations in [%s] seconds" % ((time.time() - start) - (_sleep * _count)))
