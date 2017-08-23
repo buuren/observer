@@ -141,13 +141,14 @@ class DiskStats:
                     curr=disk_curr[device],
                     ts_delta=self.observer.get_ts_delta(index),
                     deltams=deltams,
+                    r_prec=self.observer.r_prec
                 ).items()
             }
             disk_stats[device] = calculations
 
         self.observer.raw_results[self.my_metric_key][index] = disk_stats
 
-    def calc_disk_stats(self, last, curr, ts_delta, deltams):
+    def calc_disk_stats(self, last, curr, ts_delta, deltams, r_prec):
         disk_stats = {}
 
         def calc_iops():
@@ -182,7 +183,7 @@ class DiskStats:
             util = (100 * blkio_ticks / deltams) if (100 * blkio_ticks / deltams) < 100 else 100
             disk_stats['%util'] = util
 
-        def calc_storage_stats(self):
+        def calc_storage_stats():
             disk_stats['f_blocks'] = last['f_blocks']
             disk_stats['f_bsize'] = last['f_bsize']
             disk_stats['f_frsize'] = last['f_frsize']
@@ -195,15 +196,15 @@ class DiskStats:
             disk_stats['f_namemax'] = last['f_namemax']
 
             disk_stats['total_gb'] = round(
-                (float(last['f_blocks']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+                (float(last['f_blocks']) * float(last['f_frsize'])) / 1073741824, r_prec)
             disk_stats['available_gb'] = round(
-                (float(last['f_bavail']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+                (float(last['f_bavail']) * float(last['f_frsize'])) / 1073741824, r_prec)
             disk_stats['free_gb'] = round(
-                (float(last['f_bfree']) * float(last['f_frsize'])) / 1073741824, self.observer.r_prec)
+                (float(last['f_bfree']) * float(last['f_frsize'])) / 1073741824, r_prec)
             disk_stats['used_gb'] = round(
-                float(disk_stats['total_gb']) - float(disk_stats['available_gb']), self.observer.r_prec)
+                float(disk_stats['total_gb']) - float(disk_stats['available_gb']), r_prec)
             disk_stats['%used'] = round(
-                (float(disk_stats['used_gb']) / float(disk_stats['total_gb'])) * 100, self.observer.r_prec) \
+                (float(disk_stats['used_gb']) / float(disk_stats['total_gb'])) * 100, r_prec) \
                 if float(disk_stats['total_gb']) > 0 else 0
 
         if 'r_merges' in last.keys():
