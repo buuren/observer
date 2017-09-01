@@ -5,13 +5,14 @@ class CPUStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "cpustats"
+        self.observer.proc_instances[self.my_metric_key] = self
         self.observer.calculated_values[self.my_metric_key] = dict()
-        self.observer.raw_results[self.my_metric_key] = dict()
+        self.observer.raw_values[self.my_metric_key] = dict()
 
-    def get_cpustats(self, index):
+    def calculate_values(self, index):
         cpu_stats = dict()
-        cpu_last = self.cpu_io_counters(index)
-        cpu_curr = self.cpu_io_counters(index + 1)
+        cpu_last = self.generate_counters(index)
+        cpu_curr = self.generate_counters(index + 1)
 
         for device in cpu_curr.keys():
             calculations = {
@@ -22,7 +23,27 @@ class CPUStats:
             }
             cpu_stats[device] = calculations
 
-        self.observer.raw_results[self.my_metric_key][index] = cpu_stats
+        self.observer.raw_values[self.my_metric_key][index] = cpu_stats
+
+    def generate_counters(self, index):
+        read_cpu_stats = self.observer.file_content[index]['/proc/stat'][:os.cpu_count()+1]
+        cpu_stats = [self.parse_cpustats(line) for line in read_cpu_stats]
+        cpu_stats = {stat['dev']: stat for stat in cpu_stats}
+        return cpu_stats
+
+    def get_deltams(self, index):
+        cpu_last = self.generate_counters(index)['cpu']
+        cpu_curr = self.generate_counters(index + 1)['cpu']
+
+        curr_cpu_load = int(cpu_curr['user']) + int(cpu_curr['system']) + \
+            int(cpu_curr['idle']) + int(cpu_curr['iowait'])
+
+        last_cpu_load = int(cpu_last['user']) + int(cpu_last['system']) + \
+            int(cpu_last['idle']) + int(cpu_last['iowait'])
+
+        hz = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
+        deltams = 1000 * (int(curr_cpu_load) - int(last_cpu_load)) / os.cpu_count() / hz
+        return deltams
 
     @staticmethod
     def cpustats_calc(last, curr):
@@ -53,23 +74,3 @@ class CPUStats:
         del line
         d = {k: v for k, v in locals().items()}
         return d
-
-    def cpu_io_counters(self, index):
-        read_cpu_stats = self.observer.file_content[index]['/proc/stat'][:os.cpu_count()+1]
-        cpu_stats = [self.parse_cpustats(line) for line in read_cpu_stats]
-        cpu_stats = {stat['dev']: stat for stat in cpu_stats}
-        return cpu_stats
-
-    def get_deltams(self, index):
-        cpu_last = self.cpu_io_counters(index)['cpu']
-        cpu_curr = self.cpu_io_counters(index + 1)['cpu']
-
-        curr_cpu_load = int(cpu_curr['user']) + int(cpu_curr['system']) + \
-            int(cpu_curr['idle']) + int(cpu_curr['iowait'])
-
-        last_cpu_load = int(cpu_last['user']) + int(cpu_last['system']) + \
-            int(cpu_last['idle']) + int(cpu_last['iowait'])
-
-        hz = os.sysconf(os.sysconf_names['SC_CLK_TCK'])
-        deltams = 1000 * (int(curr_cpu_load) - int(last_cpu_load)) / os.cpu_count() / hz
-        return deltams

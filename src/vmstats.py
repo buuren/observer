@@ -2,14 +2,15 @@ class VMStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "vmstats"
+        self.observer.proc_instances[self.my_metric_key] = self
         self.observer.calculated_values[self.my_metric_key] = dict()
-        self.observer.raw_results[self.my_metric_key] = dict()
+        self.observer.raw_values[self.my_metric_key] = dict()
 
-    def get_vmstats(self, index):
-        vmstats = self.vmstat_counters(index)
-        self.observer.raw_results[self.my_metric_key][index] = vmstats
+    def calculate_values(self, index):
+        vmstats = self.generate_counters(index)
+        self.observer.raw_values[self.my_metric_key][index] = vmstats
 
-    def vmstat_counters(self, index):
+    def generate_counters(self, index):
         read_loadvg = self.observer.file_content[index]['/proc/loadavg'][0]
         read_vmstat = self.observer.file_content[index]['/proc/vmstat']
         read_meminfo = self.observer.file_content[index]['/proc/meminfo']

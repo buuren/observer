@@ -6,27 +6,35 @@ class DiskStats:
         self.sector_size = 512
         self.observer = observer
         self.my_metric_key = 'diskstats'
+        self.observer.proc_instances[self.my_metric_key] = self
         self.observer.calculated_values[self.my_metric_key] = dict()
-        self.observer.raw_results[self.my_metric_key] = dict()
+        self.observer.raw_values[self.my_metric_key] = dict()
 
-    def get_diskstats(self, index, deltams):
-        disk_stats = dict()
-        disk_last = self.disk_io_counters(index)
-        disk_curr = self.disk_io_counters(index + 1)
+    def calculate_values(self, index):
+        if index != self.observer.count:
+            disk_stats = dict()
+            disk_last = self.generate_counters(index)
+            disk_curr = self.generate_counters(index+1)
 
-        for device in disk_curr.keys():
-            calculations = {
-                k: round(v, self.observer.r_prec) for k, v in self.calc_disk_stats(
-                    last=disk_last[device],
-                    curr=disk_curr[device],
-                    ts_delta=self.observer.get_ts_delta(index),
-                    deltams=deltams,
-                    r_prec=self.observer.r_prec
-                ).items()
-            }
-            disk_stats[device] = calculations
+            for device in disk_curr.keys():
+                calculations = {
+                    k: round(v, self.observer.r_prec) for k, v in self.calc_disk_stats(
+                        last=disk_last[device],
+                        curr=disk_curr[device],
+                        ts_delta=self.observer.get_ts_delta(index),
+                        deltams=self.observer.cpustats.get_deltams(index),
+                        r_prec=self.observer.r_prec
+                    ).items()
+                }
+                disk_stats[device] = calculations
 
-        self.observer.raw_results[self.my_metric_key][index] = disk_stats
+            self.observer.raw_values[self.my_metric_key][index] = disk_stats
+
+    def generate_counters(self, index):
+        disk_stats = self.parse_diskstats(index)
+        disk_stats = self.parse_partitions(index, disk_stats)
+        disk_stats = self.parse_mounts(index, disk_stats)
+        return disk_stats
 
     def calc_disk_stats(self, last, curr, ts_delta, deltams, r_prec):
         disk_stats = {}
@@ -95,12 +103,6 @@ class DiskStats:
 
         return disk_stats
 
-    def disk_io_counters(self, index):
-        disk_stats = self.parse_diskstats(index)
-        disk_stats = self.parse_partitions(index, disk_stats)  # List of all disk devices
-        disk_stats = self.parse_mounts(index, disk_stats)          # List of mounted devices
-        return disk_stats
-
     def parse_diskstats(self, index):
         return {
             line.split()[2]: {
@@ -120,7 +122,7 @@ class DiskStats:
             } for line in self.observer.file_content[index]['/proc/diskstats']
         }
 
-    def extract_stavs(self, index, disk_device):
+    def parse_stavs(self, index, disk_device):
         f_bsize, f_frsize, f_blocks, f_bfree, f_bavail, f_files, f_ffree, f_favail, f_flag, f_namemax = [
             x for x in tuple(os.statvfs(disk_device))
         ]
@@ -130,8 +132,7 @@ class DiskStats:
         return d
 
     def parse_partitions(self, index, read_diskstats):
-        d = {
-            part.split()[-1]: {
+        d = {part.split()[-1]: {
                 "#blocks": part.split()[-2],
                 "minor": part.split()[-3],
                 "major": part.split()[-4]
@@ -154,7 +155,7 @@ class DiskStats:
         }
 
         for key in d.keys():
-            statvfs_values = self.extract_stavs(index, d[key]['mount_point'])
+            statvfs_values = self.parse_stavs(index, d[key]['mount_point'])
             partition_name = key.split('/dev/')[-1]
 
             if partition_name in read_partitions.keys():
