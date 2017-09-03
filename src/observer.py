@@ -26,7 +26,6 @@ class Observer:
         self.calculated_values = dict()
 
         self.proc_instances = dict()
-
         self.diskstats = DiskStats(self)
         self.vmstats = VMStats(self)
         self.procceses = Processes(self)
@@ -34,69 +33,106 @@ class Observer:
         self.cpustats = CPUStats(self)
 
     def run_analyzer(self):
-        for index in range(1, self.count+1):
+        for index in range(1, self.count):
             for metric_key in self.proc_instances:
                 self.proc_instances[metric_key].calculate_values(index)
-                self.calculate_global_values(metric_key, index)
 
-        for index in range(1, self.count+1):
+        for metric_key in self.proc_instances:
+            self.load_initial_values(metric_key)
+
+        for index in range(2, self.count):
             for metric_key in self.proc_instances:
-                self.calculate_averages(metric_key)
+                self.calculate_values(metric_key, index)
+
+        for index in range(1, self.count-1):
+            for metric_key in self.proc_instances:
+                self.caclulate_diffs(index, metric_key)
+
+        for metric_key in self.proc_instances:
+            self.calculate_sums(metric_key)
+            self.calculate_averages(metric_key)
 
         self.display_analysis()
 
-    def calculate_global_values(self, my_metric_key, index):
-        indexed_raw_metric_results = self.raw_values[my_metric_key][index]
+    def load_initial_values(self, metric_key):
+        for device, device_stats in self.raw_values[metric_key][1].items():
+            if device not in self.calculated_values[metric_key]:
+                self.calculated_values[metric_key][device] = {
+                    stat_name: {
+                        "Values": [stat_value],
+                        "Start": stat_value,
+                        "End": stat_value,
+                        "Sum": stat_value,
+                        "Min": stat_value,
+                        "Max": stat_value,
+                        "Avg": stat_value,
+                        "DiffValues": [],
+                        "DiffSum": round(self.raw_values[metric_key][2][device][stat_name] - stat_value, self.r_prec),
+                        "DiffMin": round(self.raw_values[metric_key][2][device][stat_name] - stat_value, self.r_prec),
+                        "DiffMax": round(self.raw_values[metric_key][2][device][stat_name] - stat_value, self.r_prec)
+                    } for stat_name, stat_value in device_stats.copy().items()
+                }
 
-        for device, device_stats in indexed_raw_metric_results.items():
+    def calculate_values(self, metric_key, index):
+        for device, device_stats in self.raw_values[metric_key][index].items():
             for stat_name, stat_value in device_stats.items():
-                if device not in self.calculated_values[my_metric_key]:
-                    self.calculated_values[my_metric_key][device] = {
-                        stat_name: {
-                            "Sum": stat_value,
-                            "Min": stat_value,
-                            "Max": stat_value,
-                            "Avg": stat_value
-                        } for stat_name, stat_value in device_stats.copy().items()
-                    }
-                    break
+                self.calculated_values[metric_key][device][stat_name]["Values"].append(stat_value)
+                self.calculated_values[metric_key][device][stat_name]["End"] = stat_value
+                self.min_max_generator(metric_key, device, stat_name, stat_value, "Min", "Max")
 
-                self.calculated_values[my_metric_key][device][stat_name]["Sum"] = round(
-                    (self.calculated_values[my_metric_key][device][stat_name]["Sum"] + float(stat_value)), self.r_prec
-                )
-                self.min_max_generator(my_metric_key, device, stat_name, stat_value)
+    def caclulate_diffs(self, index, metric_key):
+        for device, device_stats in self.raw_values[metric_key][index].items():
+            for stat_name, stat_value in device_stats.items():
+                next_stat_value = self.raw_values[metric_key][index+1][device][stat_name]
+                stat_diff = round(next_stat_value - stat_value, self.r_prec)
+                self.calculated_values[metric_key][device][stat_name]["DiffValues"].append(stat_diff)
+                self.min_max_generator(metric_key, device, stat_name, stat_diff, "DiffMin", "DiffMax")
 
     def calculate_averages(self, metric_key):
         for device in self.calculated_values[metric_key]:
             for stat_name, stat_values in self.calculated_values[metric_key][device].items():
                 self.calculated_values[metric_key][device][stat_name]["Avg"] = \
-                    round(float(stat_values["Sum"]) / self.count, self.r_prec)
+                    round(float(stat_values["Sum"]) / (self.count-1), self.r_prec)
+                self.calculated_values[metric_key][device][stat_name]["DiffAvg"] = \
+                    round(float(stat_values["DiffSum"]) / (self.count-1), self.r_prec)
 
-                first_value = self.raw_values[metric_key][1][device][stat_name]
-                end_value = self.raw_values[metric_key][self.count][device][stat_name]
+    def calculate_sums(self, metric_key):
+        for device in self.calculated_values[metric_key]:
+            for stat_name, stat_values in self.calculated_values[metric_key][device].items():
+                self.calculated_values[metric_key][device][stat_name]["Sum"] = round(
+                    sum(self.calculated_values[metric_key][device][stat_name]["Values"]), self.r_prec)
+                self.calculated_values[metric_key][device][stat_name]["DiffSum"] = round(
+                    sum(self.calculated_values[metric_key][device][stat_name]["DiffValues"]), self.r_prec)
 
-                self.calculated_values[metric_key][device][stat_name]["Start"] = first_value
-                self.calculated_values[metric_key][device][stat_name]["End"] = end_value
-                self.calculated_values[metric_key][device][stat_name]["Delta"] = round(
-                    (end_value - first_value), self.r_prec
-                )
+    def calculate_avg_diff(self, metric_key):
+        for device in self.calculated_values[metric_key]:
+            for stat_name, stat_values in self.calculated_values[metric_key][device].items():
+                self.calculated_values[metric_key][device][stat_name]["DiffSum"] = round(
+                    sum(self.calculated_values[metric_key][device][stat_name]["Values"]), self.r_prec)
+                self.calculated_values[metric_key][device][stat_name]["DiffAvg"] = \
+                    round(float(stat_values["DiffSum"]) / (self.count-1), self.r_prec)
 
     def display_analysis(self):
         for metric_name, metric_values in self.calculated_values.items():
             for device, device_stats in metric_values.items():
                 for stat_name in device_stats:
-                    print(metric_name, device, {
-                        stat_name: {
+                    print(metric_name, device, {stat_name: {
                             k: v for k, v in self.calculated_values[metric_name][device][stat_name].items()
-                        }
-                    })
+                    }})
 
-    def min_max_generator(self, my_metric_key, device, stat_name, stat_value):
-        if float(self.calculated_values[my_metric_key][device][stat_name]["Min"]) > float(stat_value):
-            self.calculated_values[my_metric_key][device][stat_name]["Min"] = round(float(stat_value), self.r_prec)
+    def min_max_generator(self, metric_key, device, stat_name, stat_value, key_min, key_max):
+        print("Comparing [%s] <> [%s]" % (
+            self.calculated_values[metric_key][device][stat_name][key_min],
+            stat_value
+        ))
 
-        if float(self.calculated_values[my_metric_key][device][stat_name]["Max"]) < float(stat_value):
-            self.calculated_values[my_metric_key][device][stat_name]["Max"] = round(float(stat_value), self.r_prec)
+        if float(self.calculated_values[metric_key][device][stat_name][key_min]) > float(stat_value):
+            print("New [%s]" % key_min)
+            self.calculated_values[metric_key][device][stat_name][key_min] = round(float(stat_value), self.r_prec)
+
+        if float(self.calculated_values[metric_key][device][stat_name][key_max]) < float(stat_value):
+            print("New [%s]" % key_max)
+            self.calculated_values[metric_key][device][stat_name][key_max] = round(float(stat_value), self.r_prec)
 
     def file_reader(self, index):
         print("Loading proc statistics [index: %s]" % index)
@@ -159,8 +195,8 @@ if __name__ == '__main__':
     from processes import Processes
 
     start = time.time()
-    _sleep = 2
-    _count = 2
+    _sleep = 0.5
+    _count = 5
     o = Observer(sleep=_sleep, count=_count)
     o.run_analyzer()
-    print("Finished calculations in [%s] seconds" % (time.time() - start - _sleep))
+    print("Finished calculations in [%s] seconds" % (time.time() - start - _sleep*_count))

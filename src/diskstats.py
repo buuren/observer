@@ -11,24 +11,23 @@ class DiskStats:
         self.observer.raw_values[self.my_metric_key] = dict()
 
     def calculate_values(self, index):
-        if index != self.observer.count:
-            disk_stats = dict()
-            disk_last = self.generate_counters(index)
-            disk_curr = self.generate_counters(index+1)
+        disk_stats = dict()
+        disk_last = self.generate_counters(index)
+        disk_curr = self.generate_counters(index+1)
 
-            for device in disk_curr.keys():
-                calculations = {
-                    k: round(v, self.observer.r_prec) for k, v in self.calc_disk_stats(
-                        last=disk_last[device],
-                        curr=disk_curr[device],
-                        ts_delta=self.observer.get_ts_delta(index),
-                        deltams=self.observer.cpustats.get_deltams(index),
-                        r_prec=self.observer.r_prec
-                    ).items()
-                }
-                disk_stats[device] = calculations
+        for device in disk_curr.keys():
+            calculations = {
+                k: round(v, self.observer.r_prec) for k, v in self.calc_disk_stats(
+                    last=disk_last[device],
+                    curr=disk_curr[device],
+                    ts_delta=self.observer.get_ts_delta(index),
+                    deltams=self.observer.cpustats.get_deltams(index),
+                    r_prec=self.observer.r_prec
+                ).items()
+            }
+            disk_stats[device] = calculations
 
-            self.observer.raw_values[self.my_metric_key][index] = disk_stats
+        self.observer.raw_values[self.my_metric_key][index] = disk_stats
 
     def generate_counters(self, index):
         disk_stats = self.parse_diskstats(index)
