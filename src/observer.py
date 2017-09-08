@@ -8,31 +8,24 @@ class Observer:
         self.sleep = sleep
         self.count = count
         self.r_prec = round_precision
-        self.file_content = dict()
-        self.raw_values = dict()
-        self.proc_file_dictionary = [
-            "/proc/diskstats",
-            "/proc/partitions",
-            "/proc/stat",
-            "/proc/loadavg",
-            "/proc/vmstat",
-            "/proc/meminfo",
-            "/proc/mounts"
-        ]
-        self.pid_file_list = ['io', 'status', 'maps', 'smaps', 'statm']
-
-        self.file_content = self.load_file_data()
         self.path_to_json = path_to_json
         self.alert_data = self.json_reader()
         self.system_uptime_seconds = self.get_system_uptime()
-        self.calculated_values = dict()
 
+        self.file_content = dict()
+        self.raw_values = dict()
+        self.calculated_values = dict()
+        self.proc_file_dictionary = list()
         self.proc_instances = dict()
+
         self.diskstats = DiskStats(self)
-        #self.vmstats = VMStats(self)
+        self.vmstats = VMStats(self)
         self.procceses = PidStats(self)
         #self.netstats = NetStats(self)
         self.cpustats = CPUStats(self)
+
+        self.file_content = self.load_file_data()
+
 
     def run_analyzer(self):
         for metric_key in self.proc_instances:
@@ -118,16 +111,11 @@ class Observer:
     def file_reader(self, index):
         self.file_content[index] = dict()
         self.file_content[index]['ts'] = time.time()
-        self.file_content[index]['pid'] = dict()
 
-        for pid in self.return_pid_list():
-            self.file_content[index]['pid'][pid] = dict()
-            for pid_filename in self.pid_file_list:
-                file_name = "/proc/%s/%s" % (pid, pid_filename)
-                self.file_content[index]['pid'][pid][pid_filename] = self.get_file_content(file_name)
-
-        for file_name in self.proc_file_dictionary:
-            self.file_content[index][file_name] = self.get_file_content(file_name)
+        for metric_key in self.proc_instances:
+            self.file_content[index][metric_key] = dict()
+            for each_proc_filename in self.proc_instances[metric_key].return_proc_location(index):
+                self.file_content[index][metric_key][each_proc_filename] = self.get_file_content(each_proc_filename)
 
     def get_ts_delta(self, index):
         return self.file_content[index+1]["ts"] - self.file_content[index]["ts"]
@@ -162,10 +150,6 @@ class Observer:
             status = "OK"
 
         return status
-
-    @staticmethod
-    def return_pid_list():
-        return [pid for pid in os.listdir('/proc') if pid.isdigit()]
 
     @staticmethod
     def get_system_uptime():

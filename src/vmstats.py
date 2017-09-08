@@ -2,18 +2,23 @@ class VMStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "vmstats"
-        self.observer.proc_instances[self.my_metric_key] = self
+        self.my_file_list = ["vmstat", "meminfo", "loadavg"]
+        self.observer.proc_file_dictionary.append(self.my_file_list)
+
         self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_values[self.my_metric_key] = dict()
+        self.observer.proc_instances[self.my_metric_key] = self
+        self.keep_filenames = dict()
+
 
     def calculate_values(self, index):
         vmstats = self.generate_counters(index)
         self.observer.raw_values[self.my_metric_key][index] = vmstats
 
     def generate_counters(self, index):
-        read_loadvg = self.observer.file_content[index]['/proc/loadavg'][0]
-        read_vmstat = self.observer.file_content[index]['/proc/vmstat']
-        read_meminfo = self.observer.file_content[index]['/proc/meminfo']
+        read_loadvg = self.observer.file_content[index][self.my_metric_key]['/proc/loadavg'][0]
+        read_vmstat = self.observer.file_content[index][self.my_metric_key]['/proc/vmstat']
+        read_meminfo = self.observer.file_content[index][self.my_metric_key]['/proc/meminfo']
 
         vmstats = dict()
         vmstats['loadavg'] = self.parse_loadavg(read_loadvg)
@@ -33,3 +38,8 @@ class VMStats:
         del line, curr_proc, last_proc_id
         d = {k: float(v) for k, v in locals().items()}
         return d
+
+    def return_proc_location(self, index):
+        list_of_filenames = ['/proc/%s' % filename for filename in self.my_file_list]
+        self.keep_filenames[index] = list_of_filenames
+        return list_of_filenames

@@ -5,10 +5,14 @@ class DiskStats:
     def __init__(self, observer):
         self.sector_size = 512
         self.observer = observer
-        self.my_metric_key = 'diskstats'
-        self.observer.proc_instances[self.my_metric_key] = self
+        self.my_metric_key = "diskstats"
+        self.my_file_list = ["diskstats", "partitions", "mounts"]
+        self.observer.proc_file_dictionary.append(self.my_file_list)
+
         self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_values[self.my_metric_key] = dict()
+        self.observer.proc_instances[self.my_metric_key] = self
+        self.keep_filenames = dict()
 
     def calculate_values(self, index):
         disk_stats = dict()
@@ -118,7 +122,7 @@ class DiskStats:
                 "ios_pgr": line.split()[11],
                 "tot_ticks": line.split()[12],
                 "rq_ticks": line.split()[13],
-            } for line in self.observer.file_content[index]['/proc/diskstats']
+            } for line in self.observer.file_content[index][self.my_metric_key]['/proc/diskstats']
         }
 
     def parse_stavs(self, index, disk_device):
@@ -135,7 +139,7 @@ class DiskStats:
                 "#blocks": part.split()[-2],
                 "minor": part.split()[-3],
                 "major": part.split()[-4]
-            } for part in self.observer.file_content[index]['/proc/partitions'][2:]
+            } for part in self.observer.file_content[index][self.my_metric_key]['/proc/partitions'][2:]
             if not isinstance(part.strip()[-1], int)
         }
 
@@ -150,7 +154,7 @@ class DiskStats:
                 "mount_point": device_data.split()[1],
                 "fs_type": device_data.split()[2],
                 "mount_opts": ' '.join(device_data.split()[3:])
-            } for device_data in self.observer.file_content[index]['/proc/mounts']
+            } for device_data in self.observer.file_content[index][self.my_metric_key]['/proc/mounts']
         }
 
         for key in d.keys():
@@ -170,3 +174,8 @@ class DiskStats:
                 }
 
         return read_partitions
+
+    def return_proc_location(self, index):
+        list_of_filenames = ['/proc/%s' % filename for filename in self.my_file_list]
+        self.keep_filenames[index] = list_of_filenames
+        return list_of_filenames

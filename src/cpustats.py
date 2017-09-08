@@ -5,9 +5,13 @@ class CPUStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "cpustats"
-        self.observer.proc_instances[self.my_metric_key] = self
+        self.my_file_list = ["stat"]
+        self.observer.proc_file_dictionary.append(self.my_file_list)
+
         self.observer.calculated_values[self.my_metric_key] = dict()
         self.observer.raw_values[self.my_metric_key] = dict()
+        self.observer.proc_instances[self.my_metric_key] = self
+        self.keep_filenames = dict()
 
     def calculate_values(self, index):
         cpu_stats = dict()
@@ -26,7 +30,7 @@ class CPUStats:
         self.observer.raw_values[self.my_metric_key][index] = cpu_stats
 
     def generate_counters(self, index):
-        read_cpu_stats = self.observer.file_content[index]['/proc/stat'][:os.cpu_count()+1]
+        read_cpu_stats = self.observer.file_content[index][self.my_metric_key]['/proc/stat'][:os.cpu_count()+1]
         cpu_stats = [self.parse_cpustats(line) for line in read_cpu_stats]
         cpu_stats = {stat['dev']: stat for stat in cpu_stats}
         return cpu_stats
@@ -74,3 +78,8 @@ class CPUStats:
         del line
         d = {k: v for k, v in locals().items()}
         return d
+
+    def return_proc_location(self, index):
+        list_of_filenames = ['/proc/%s' % filename for filename in self.my_file_list]
+        self.keep_filenames[index] = list_of_filenames
+        return list_of_filenames
