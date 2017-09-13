@@ -18,16 +18,52 @@ class PidStats:
         self.keep_filenames = dict()
         self.keep_pids = dict()
 
-    def calculate_values(self, index):
-        # Parse PID files
-        pid_stats = dict()
-        pid_stats = self.generate_counters(index)
-        calculations = dict()
-        # self.observer.raw_values[self.my_metric_key][index] = self.generate_counters(index)
+        self.PAGESIZE = os.sysconf("SC_PAGE_SIZE") / 1024  # KiB
 
-        # Start calculations
-        exit()
+    def calculate_values(self, index):
+        counters = self.generate_counters(index)
+        calculations = self.calculate_counters(counters)
         self.observer.raw_values[self.my_metric_key][index] = calculations
+
+    def calculate_counters(self, counters):
+        calculated_values = dict()
+        for pid in counters.keys():
+            calculated_values[pid] = dict()
+            calculated_values[pid]['memory'] = self.calculate_memory(counters[pid])
+
+        return calculated_values
+
+    def calculate_memory(self, pid_counters):
+        pss_adjust = 0.5
+
+        private = []
+        shared = []
+        pss = []
+        swap = []
+        swap_pss = []
+
+        for thread in pid_counters['smaps']:
+            thread_memory_data = pid_counters['smaps'][thread]
+            shared.extend([
+                thread_memory_data['Shared_Clean:'],
+                thread_memory_data['Shared_Dirty:'],
+                thread_memory_data['Shared_Hugetlb:']
+            ])
+            private.extend([
+                thread_memory_data['Private_Clean:'],
+                thread_memory_data['Private_Dirty:'],
+                thread_memory_data['Private_Hugetlb:']
+            ])
+            pss.append(thread_memory_data['Pss:']+pss_adjust)
+            swap.append(thread_memory_data['Swap:'])
+            swap_pss.append(thread_memory_data['SwapPss:'])
+
+        private_sum = sum(private)
+        pss_sum = sum(pss)
+        shared_sum = pss_sum - private_sum
+        swap_sum = sum(swap_pss)
+
+        return {"private": private_sum, "shared": shared_sum, "swap": swap_sum}
 
     def generate_counters(self, index):
         pid_stats = dict()
@@ -56,18 +92,20 @@ class PidStats:
     def parse_smaps(self, index, pid_filename):
         file_content = self.observer.file_content[index][self.my_metric_key][pid_filename]
         chunked_file = [file_content[i:i + 21] for i in range(0, len(file_content), 21)]
+        smaps = {}
 
-        return {
-            chunk[0]: {
-                    chunk[n].split()[0]: chunk[n].split()[1:]
-            } for n in range(1, 21)
-            for chunk in chunked_file
-        }
+        for chunk in chunked_file:
+            smaps[chunk[0]] = dict()
+            for n in range(1, 20):
+                smaps[chunk[0]][chunk[n].split()[0]] = int(chunk[n].split()[1])
+            smaps[chunk[0]][chunk[20].split()[0]] = chunk[20].split()[1:]
+
+        return smaps
 
     def parse_statm(self, index, pid_filename):
         file_content = self.observer.file_content[index][self.my_metric_key][pid_filename]
 
-        size, resident, shared, text, lib, data, dt = file_content[0].split()
+        size, rss, shared, text, lib, data, dt = file_content[0].split()
         del self, index, pid_filename, file_content
 
         return {
