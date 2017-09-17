@@ -1,14 +1,11 @@
 import os
-from observer import Observer
 
 
 class PidStats:
     def __init__(self, observer):
         self.observer = observer
         self.my_metric_key = "pid_data"
-        # "maps",
-        self.my_file_list = ["io", "status", "smaps", "statm"]
-        #self.my_file_list = ["io", "status", "maps", "smaps", "statm"]
+        self.my_file_list = ["io", "status", "smaps", "statm", "cmdline"]
         self.observer.proc_file_dictionary.append(self.my_file_list)
 
         self.observer.calculated_values[self.my_metric_key] = dict()
@@ -18,22 +15,35 @@ class PidStats:
         self.keep_filenames = dict()
         self.keep_pids = dict()
 
-        self.PAGESIZE = os.sysconf("SC_PAGE_SIZE") / 1024  # KiB
-
     def calculate_values(self, index):
-        counters = self.generate_counters(index)
+        counters = self.parse_proc_files(index)
         calculations = self.calculate_counters(counters)
         self.observer.raw_values[self.my_metric_key][index] = calculations
+
+    def parse_proc_files(self, index):
+        pid_stats = dict()
+
+        for pid in self.keep_pids[index]:
+            pid_stats[pid] = dict()
+            pid_stats[pid]["io"] = self.parse_io(index, "/proc/%s/io" % pid)
+            pid_stats[pid]["status"] = self.parse_status(index, "/proc/%s/status" % pid)
+            pid_stats[pid]["smaps"] = self.parse_smaps(index, "/proc/%s/smaps" % pid)
+            pid_stats[pid]["statm"] = self.parse_statm(index, "/proc/%s/statm" % pid)
+            pid_stats[pid]["cmdline"] = self.parse_cmdline(index, "/proc/%s/cmdline" % pid)
+
+        return pid_stats
 
     def calculate_counters(self, counters):
         calculated_values = dict()
         for pid in counters.keys():
             calculated_values[pid] = dict()
             calculated_values[pid]['memory'] = self.calculate_memory(counters[pid])
-
+            calculated_values[pid]['cmdline'] = counters[pid]['cmdline']
+            print(counters[pid]['cmdline'])
         return calculated_values
 
     def calculate_memory(self, pid_counters):
+        # https://github.com/pixelb/ps_mem/blob/master/ps_mem.py
         pss_adjust = 0.5
 
         private = []
@@ -65,17 +75,14 @@ class PidStats:
 
         return {"private": private_sum, "shared": shared_sum, "swap": swap_sum}
 
-    def generate_counters(self, index):
-        pid_stats = dict()
+    def parse_cmdline(self, index, pid_filename):
+        cmdline = self.observer.file_content[index][self.my_metric_key][pid_filename]
 
-        for pid in self.keep_pids[index]:
-            pid_stats[pid] = dict()
-            pid_stats[pid]["io"] = self.parse_io(index, "/proc/%s/io" % pid)
-            pid_stats[pid]["status"] = self.parse_status(index, "/proc/%s/status" % pid)
-            pid_stats[pid]["smaps"] = self.parse_smaps(index, "/proc/%s/smaps" % pid)
-            pid_stats[pid]["statm"] = self.parse_statm(index, "/proc/%s/statm" % pid)
-
-        return pid_stats
+        if len(cmdline) > 0:
+            cmdline_split = cmdline[0].split("\0")
+            return {cmdline_split[0]: cmdline_split[1:-1]}
+        else:
+            return {}
 
     def parse_io(self, index, pid_filename):
         return {
@@ -104,7 +111,6 @@ class PidStats:
 
     def parse_statm(self, index, pid_filename):
         file_content = self.observer.file_content[index][self.my_metric_key][pid_filename]
-
         size, rss, shared, text, lib, data, dt = file_content[0].split()
         del self, index, pid_filename, file_content
 
@@ -112,42 +118,6 @@ class PidStats:
             k: v
             for k, v in locals().items()
         }
-
-
-    def get_process_memory_stats(self, index):
-        """
-        based on  statm parser:
-
-        size       (1) total program size (same as VmSize in /proc/[pid]/status)
-        resident   (2) resident set size (same as VmRSS in /proc/[pid]/status)
-        shared     (3) number of resident shared pages (i.e., backed by a file) (same as RssFile+RssShmem in /proc/[pid]/status)
-        text       (4) text (code)
-        lib        (5) library (unused since Linux 2.6; always 0)
-        data       (6) data + stack
-        dt         (7) dirty pages (unused since Linux 2.6; always 0)
-
-        VmSize in status
-        Shareds
-        mem_ids
-        swaps
-        shared_swaps
-        http://man7.org/linux/man-pages/man5/proc.5.html
-        """
-        #dict_keys(['io', 'status', 'maps', 'smaps', 'statm'])
-
-        print(self.observer.raw_values[self.my_metric_key][index]['3334']['smaps'])
-        exit()
-
-        shared_mem = sum(
-            [
-                int(line.split()[1])
-                for line in self.observer.raw_values[self.my_metric_key][index]
-            ]
-        )
-
-        private_mem = sum(
-            [int(line.split()[1]) for line in self.observer.raw_values[self.my_metric_key][index]]
-        )
 
     def return_proc_location(self, index):
         pid_list = self.return_pid_list()
@@ -166,5 +136,7 @@ class PidStats:
     @staticmethod
     def return_pid_list():
         return [pid for pid in os.listdir('/proc') if pid.isdigit()]
+
+
 if __name__ == '__main__':
     pass
