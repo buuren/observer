@@ -7,7 +7,7 @@ from parsers.disk import DiskStats
 from parsers.vm import VMStats
 from parsers.pid import PidStats
 
-from analyzers.analyze_cpu import AnalyzeCPUStats
+from analyzers.cpu import AnalyzeCPUStats
 
 
 class Observer:
