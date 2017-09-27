@@ -4,21 +4,21 @@ import os
 class PidStats:
     def __init__(self, observer):
         self.observer = observer
-        self.my_metric_key = "pid_data"
+        self.metric_key = "pid_data"
         self.file_list = ["io", "status", "smaps", "statm", "cmdline"]
         self.keep_filenames = dict()
         self.keep_pids = dict()
 
     def initiate_observer(self):
         self.observer.proc_file_dictionary.append(self.file_list)
-        self.observer.calculated_values[self.my_metric_key] = dict()
-        self.observer.raw_values[self.my_metric_key] = dict()
-        self.observer.proc_instances[self.my_metric_key] = self
+        self.observer.calculated_values[self.metric_key] = dict()
+        self.observer.raw_values[self.metric_key] = dict()
+        self.observer.proc_instances[self.metric_key] = self
 
     def calculate_values(self, index):
         counters = self.parse_proc_files(index)
         calculations = self.calculate_counters(counters)
-        self.observer.raw_values[self.my_metric_key][index] = calculations
+        self.observer.raw_values[self.metric_key][index] = calculations
 
     def parse_proc_files(self, index):
         pid_stats = dict()
@@ -76,7 +76,7 @@ class PidStats:
         return {"private": private_sum, "shared": shared_sum, "swap": swap_sum}
 
     def parse_cmdline(self, index, pid_filename):
-        cmdline = self.observer.file_content[index][self.my_metric_key][pid_filename]
+        cmdline = self.observer.file_content[index][self.metric_key][pid_filename]
 
         if len(cmdline) > 0:
             cmdline_split = cmdline[0].split("\0")
@@ -87,17 +87,17 @@ class PidStats:
     def parse_io(self, index, pid_filename):
         return {
             line.strip().split()[0].replace(":", ""): ''.join(line.strip().replace('kB', '').split()[1:])
-            for line in self.observer.file_content[index][self.my_metric_key][pid_filename]
+            for line in self.observer.file_content[index][self.metric_key][pid_filename]
         }
 
     def parse_status(self, index, pid_filename):
         return {
             line.strip().split()[0].replace(":", ""): ''.join(line.strip().replace('kB', '').split()[1:])
-            for line in self.observer.file_content[index][self.my_metric_key][pid_filename]
+            for line in self.observer.file_content[index][self.metric_key][pid_filename]
         }
 
     def parse_smaps(self, index, pid_filename):
-        file_content = self.observer.file_content[index][self.my_metric_key][pid_filename]
+        file_content = self.observer.file_content[index][self.metric_key][pid_filename]
         chunked_file = [file_content[i:i + 21] for i in range(0, len(file_content), 21)]
         smaps = {}
 
@@ -110,7 +110,7 @@ class PidStats:
         return smaps
 
     def parse_statm(self, index, pid_filename):
-        file_content = self.observer.file_content[index][self.my_metric_key][pid_filename]
+        file_content = self.observer.file_content[index][self.metric_key][pid_filename]
         size, rss, shared, text, lib, data, dt = file_content[0].split()
         del self, index, pid_filename, file_content
 

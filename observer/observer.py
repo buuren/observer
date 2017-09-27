@@ -25,14 +25,18 @@ class Observer:
         self.proc_file_dictionary = list()
         self.proc_instances = dict()
 
-        #self.diskstats = DiskStats(self).initiate_observer()
-        #self.vmstats = VMStats(self).initiate_observer()
-        #self.procceses = PidStats(self).initiate_observer()
-        #self.netstats = NetStats(self).initiate_observer()
-        self.cpustats = CPUStats(self).initiate_observer()
-        self.analyze_cpustats = AnalyzeCPUStats(observer=self)
+        self.diskstats = DiskStats(self)
+        self.vmstats = VMStats(self)
+        self.pidstats = PidStats(self)
+        self.netstats = NetStats(self)
+        self.cpustats = CPUStats(self)
 
         self.file_content = self.load_file_data()
+        self.initiate_parsers()
+
+    def initiate_parsers(self):
+        for metric_key in self.proc_instances:
+            self.proc_instances[metric_key].initiate_observer()
 
     def generate_calculated_values(self):
         for metric_key in self.proc_instances:
@@ -124,6 +128,7 @@ class Observer:
         self.file_content[index]['ts'] = time.time()
 
         for metric_key in self.proc_instances:
+            print(metric_key)
             self.file_content[index][metric_key] = dict()
             for each_proc_filename in self.proc_instances[metric_key].return_proc_location(index):
                 self.file_content[index][metric_key][each_proc_filename] = self.get_file_content(each_proc_filename)

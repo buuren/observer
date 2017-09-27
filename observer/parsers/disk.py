@@ -6,7 +6,7 @@ class DiskStats:
         self.sector_size = 512
         self.observer = observer
         self.metric_key = "diskstats"
-        self.metric_key = ["diskstats", "partitions", "mounts"]
+        self.file_list = ["diskstats", "partitions", "mounts"]
         self.keep_filenames = dict()
 
     def initiate_observer(self):
@@ -177,6 +177,6 @@ class DiskStats:
         return read_partitions
 
     def return_proc_location(self, index):
-        list_of_filenames = ['/proc/%s' % filename for filename in self.metric_key]
+        list_of_filenames = ['/proc/%s' % filename for filename in self.file_list]
         self.keep_filenames[index] = list_of_filenames
         return list_of_filenames

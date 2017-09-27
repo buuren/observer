@@ -1,10 +1,10 @@
 import os
 import sys
 import time
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../observer')))
 
-from
-print(sys.path)
+from observer import Observer
+#print(sys.path)
 
 start = time.time()
 _sleep = 1
