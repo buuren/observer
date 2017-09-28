@@ -1,13 +1,11 @@
 import json
 import time
 
-from parsers.cpu import CPUStats
-from parsers.net import NetStats
-from parsers.disk import DiskStats
-from parsers.vm import VMStats
-from parsers.pid import PidStats
-
-from analyzers.cpu import AnalyzeCPUStats
+from cpu.cpu_observer import CPUObserver
+from disk.parser import DiskStats
+from net.parser import NetStats
+from pid.parser import PidStats
+from vm.parser import VMStats
 
 
 class Observer:
@@ -23,25 +21,20 @@ class Observer:
         self.raw_values = dict()
         self.calculated_values = dict()
         self.proc_file_dictionary = list()
-        self.proc_instances = dict()
+        self.observer_instances = dict()
 
-        self.diskstats = DiskStats(self)
-        self.vmstats = VMStats(self)
-        self.pidstats = PidStats(self)
-        self.netstats = NetStats(self)
-        self.cpustats = CPUStats(self)
+        #self.diskstats = DiskStats(self)
+        #self.vmstats = VMStats(self)
+        #self.pidstats = PidStats(self)
+        #self.netstats = NetStats(self)
+        self.cpu_observer = CPUObserver(self)
 
         self.file_content = self.load_file_data()
-        self.initiate_parsers()
-
-    def initiate_parsers(self):
-        for metric_key in self.proc_instances:
-            self.proc_instances[metric_key].initiate_observer()
 
     def generate_calculated_values(self):
-        for metric_key in self.proc_instances:
+        for metric_key in self.observer_instances:
             for index in range(1, self.count):
-                self.proc_instances[metric_key].calculate_values(index)
+                self.observer_instances[metric_key]["load"].calculate_values(index)
 
             self.load_initial_values(metric_key)
 
@@ -57,7 +50,7 @@ class Observer:
         self.analyze_calculated_values()
 
     def analyze_calculated_values(self):
-        for metric_key in self.proc_instances:
+        for metric_key in self.observer_instances:
             print(metric_key)
 
     def load_initial_values(self, metric_key):
@@ -127,10 +120,9 @@ class Observer:
         self.file_content[index] = dict()
         self.file_content[index]['ts'] = time.time()
 
-        for metric_key in self.proc_instances:
-            print(metric_key)
+        for metric_key in self.observer_instances:
             self.file_content[index][metric_key] = dict()
-            for each_proc_filename in self.proc_instances[metric_key].return_proc_location(index):
+            for each_proc_filename in self.observer_instances[metric_key]["load"].return_proc_location(index):
                 self.file_content[index][metric_key][each_proc_filename] = self.get_file_content(each_proc_filename)
 
     def get_ts_delta(self, index):
